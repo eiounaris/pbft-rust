@@ -1,0 +1,32 @@
+[
+  {
+    "node_id": 1,
+    "ip": "127.0.0.1",
+    "port": 8081,
+    "public_key": "-----BEGIN RSA PUBLIC KEY-----\nMIIBCgKCAQEAs35wFZuwfO0/bQZq+ESUfEkBV9Y+O6rZdkKLMiTGo/YA3BF41S3s\n7Tw2P+oaIo5Fc6iKP6DvmtSz5XqRwgAx99T+FiktW6pbquesLr8dwS71qQRCWYy7\nq3RdBKVfzlb7MmLsjLL/UJ3BHqF0Fr3FQsEpa5KNejUrl3c1yKEqjCA+/00E0bI1\ngCJD9IJgybZQPkJriMwTWL1t9gzM/vSerPDs45p7nsDtJQxEScPNjyOAB+lQHakn\nEihjEJsjrMprTFoPg40gUb3TruBM2f8nLfPeWqmT2reCkcHP9/YSInseuZTKsTUY\nQATCDOq8usokG+gQtOydqRK4zK62wSRKLQIDAQAB\n-----END RSA PUBLIC KEY-----\n"
+  },
+  {
+    "node_id": 2,
+    "ip": "127.0.0.1",
+    "port": 8082,
+    "public_key": "-----BEGIN RSA PUBLIC KEY-----\nMIIBCgKCAQEAsA4W+RYYOo2RYnzeubq+niJaye4P/9wmsVEWxzg4RMqbNsXNSg/6\ni3vZJM0kIhSPqVZzEq6ogVv3ETSSfpRFKF3kQtnElDYAkm1vHZc8Ighb0et1QCjg\n/eH3ynqn2+ou+ei80igrQ3ldDqu8kKSMcuy4uS9W6EJ5Taqgcd4Lb9oq/ctCNX7v\nWiRAn4QV3ZAKn7yKmvU/luAEgXTUwvU752qWZC7/W0zXLStud/XUjWw5B7qJOd9e\n4n+ZYeA0+CzgsEJIt2o8g9dms+YQDw+DcQWrhsflYMwJAapPpENPkrN4L2rmXaFy\nj2LDXHqbgXX2zZEk4o95pyij2QhLIK4S1wIDAQAB\n-----END RSA PUBLIC KEY-----\n"
+  },
+  {
+    "node_id": 3,
+    "ip": "127.0.0.1",
+    "port": 8083,
+    "public_key": "-----BEGIN RSA PUBLIC KEY-----\nMIIBCgKCAQEAzu+/wais8M2bq1KIw0Wej4m0rfrNBPI2Wvi1ObZcYLXmvBSN6uXR\nWCyvJA2WaVr2nS6orSf2JkdaVKIPOjtI81sV8G8Z4X8TU/lzNF5QrmSqUnK0tZ4Z\nXgToMOFFsQymHygJiH6hzBbTg7Y6FJQB4ytZpItMPlpgwkL5MhNOuDkNLjvGwcDr\nudNmI+pwTxE6AsPqdy6cnHjjvM5FIE14dSvVm4ln7FGuH2KDZeT5GMRuz5H21jM3\nXRrAHlQ4JstrmB3fsTDJDXMXLIr/DhdD8nuEL9F//w979gUYOi3+ed6Rcb7h8W0Q\noOrNAtTuUKfFSyqK2pNkEoBqG5zQRpwYfwIDAQAB\n-----END RSA PUBLIC KEY-----\n"
+  },
+  {
+    "node_id": 4,
+    "ip": "127.0.0.1",
+    "port": 8084,
+    "public_key": "-----BEGIN RSA PUBLIC KEY-----\nMIIBCgKCAQEAzKBsu8Jcgfr+3bARo3LPchF7yykgLYYrusAV6zYAdozRKOQ2NhNZ\n8OBpPbcX+/tfECr/sXQK8dh1Fp9P+nXMsZna5BeDrG0/ZLqUgOm5G5QEzmPdWFh8\n3gpU9AU7K7GLXgNdVr2elkgdnhS7Ljr3X8l0l8HE11Ao8KDoBz3bbyrdZHc2wrJk\n8Pz2q/1vUGMiZK1Vffmye/+aRZQ8borK8Q2UsRUmiHbssGRugzOycu1F5SQQ+t7L\nPsPhIfKVYsMOYu22NX0+aQsZIhPIupB315aYih1jEvkGPf42aLbbD8W9fgEjdFMs\nqzLj9RhrHjDmUVk7u3C7nQ1EK3AEryYm9QIDAQAB\n-----END RSA PUBLIC KEY-----\n"
+  },
+  {
+    "node_id": 5,
+    "ip": "127.0.0.1",
+    "port": 8085,
+    "public_key": "-----BEGIN RSA PUBLIC KEY-----\nMIIBCgKCAQEAz+jGnBceVbKoywYmf+P3qtmCRy5cbSJ9V5ac4Q2zuPrPfnO210hR\nKS9Jz5lXE5KrddVr7GJyHFNJliPgpkdakYY/nnskAWAlRXbkoETA9eSrRXmUnLBn\nobaMaP1e47lHFJWEZ6Owb1VmSbipSPiO86uBPtDqtd81Jnl0YU4EO2ueTGo4Ox6z\nuy2dNhl9pBPHWeh+IJ7nNImFGLVh/sRLcXdVTkRnYoIrTWe8lkDUp3xNO/h7xRuG\nBJ92OLudpSIkzp/7Kc6POH7FG9DNs4xFsVh5hT4mx5Uq0fcy4YPArjELMQX4AovG\nMaau76u6A/6oaIiAHPQJ7G8uwJCByGe36QIDAQAB\n-----END RSA PUBLIC KEY-----\n"
+  }
+]
