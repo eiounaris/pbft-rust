@@ -55,7 +55,7 @@ fn main() {
     let new_config_data: String = serde_json::to_string_pretty(&nodes).unwrap();
     fs::write("config/nodes_config_with_publickey.json", &new_config_data).unwrap();
 
-    println!("密钥生成完成，配置文件已保存为 nodes_config_with_publickey.json");
+    println!("节点配置生成完毕，已保存在 config/nodes_config_with_publickey.json");
 }
 
 // 生成RSA密钥对
