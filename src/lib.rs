@@ -1,4 +1,3 @@
-// #![allow(dead_code, unused_variables)]
 pub mod utils;
 use utils::*;
 
@@ -12,11 +11,13 @@ use sha2::{Sha256, Digest};
 
 use tokio::{ net::UdpSocket, sync::Mutex, io::{AsyncBufReadExt, BufReader}};
 
+use tokio::time::{interval, Duration, sleep};
+
 use tokio::sync::mpsc;
 // ---
 
 /// 节点配置
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeConfig{
     pub node_id: u64,
     pub ip: String,
@@ -29,7 +30,7 @@ pub struct NodeConfig{
 
 /// 区块
 const BLOCK_SIZE: usize = 3;
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Block {
     pub index: u64,
     pub timestamp: u64,
@@ -41,7 +42,7 @@ pub struct Block {
 // ---
 
 /// PBFT 复制状态
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReplicationState {
     pub blockchain: Vec<Block>, // 区块链
     pub operation_buffer: Vec<Operation>, // 操作缓冲
@@ -51,21 +52,21 @@ pub struct ReplicationState {
 // ---
 
 /// PBFT 操作
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Operation {
     ReadOperation(ReadOperation),
     WriteOperation(WriteOperation),
 }
 
 /// 读操作
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ReadOperation {
     Read1,
     Read2,
 }
 
 /// 写操作
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WriteOperation {
     Write1,
     Write2,
@@ -74,7 +75,7 @@ pub enum WriteOperation {
 // ---
 
 /// 消息类型
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MessageType {
     Request = 0,
     PrePrepare = 1,
@@ -83,11 +84,18 @@ pub enum MessageType {
     Reply = 4,
     ViewChange = 5,
     NewView = 6,
-    Unknown = 10,
+    Hearbeat = 7,
+    Unknown = 8,
+    DeterminingPrimaryNode = 9, // 待使用
+    ReplingPrimaryNode = 10, // 待使用
+    DeterminingLatestReplicationState = 11, // 待使用
+    ReplingLatestReplicationState = 12, // 待使用
+    SyncRequest = 13,
+    SyncResponse = 14,
 }
 
 /// 请求消息
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Request {
     pub operation: Operation,
     pub timestamp: u64,
@@ -96,7 +104,7 @@ pub struct Request {
 }
 
 /// 预准备消息
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrePrepare {
     pub view_number: u64,
     pub sequence_number: u64,
@@ -107,7 +115,7 @@ pub struct PrePrepare {
 }
 
 /// 准备消息
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Prepare {
     pub view_number: u64,
     pub sequence_number: u64,
@@ -117,7 +125,7 @@ pub struct Prepare {
 }
 
 /// 提交消息
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Commit {
     pub view_number: u64,
     pub sequence_number: u64,
@@ -127,7 +135,7 @@ pub struct Commit {
 }
 
 /// 回应消息
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Reply {
     pub view_number: u64,
     pub timestamp: u64,
@@ -138,13 +146,46 @@ pub struct Reply {
 }
 
 /// 视图切换消息
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ViewChange {
     pub view_number: u64,
     pub sequence_number: u64,
     pub node_id: u64,
     pub signature: Vec<u8>,
 }
+
+/// 新试图消息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NewView {
+    pub view_number: u64,
+    pub sequence_number: u64,
+    pub node_id: u64,
+    pub signature: Vec<u8>,
+}
+
+/// 心跳消息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Hearbeat {
+    pub view_number: u64,
+    pub sequence_number: u64,
+    pub node_id: u64,
+    pub signature: Vec<u8>,
+}
+
+/// 同步请求消息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncRequest {
+    pub from_index: u64,
+    pub to_index: u64,
+}
+
+/// 同步响应消息
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncResponse {
+    pub blocks: Vec<Block>,
+}
+
+
 
 // ---
 
@@ -154,6 +195,9 @@ pub enum PbftStep {
     ReceiveingPrepare = 1,
     ReceiveingCommit = 2,
     RequestingLatestState = 3,
+    DeterminingPrimaryNode = 4, // 待使用
+    DeterminingLatestReplicationState = 5, // 待使用
+    RequestingLatestReplicationState = 6, // 待使用
 }
 
 /// 存储 pbft 共识过程状态信息
@@ -167,7 +211,9 @@ pub struct PbftState {
     pub preprepare: Option<PrePrepare>,
     pub prepares: HashSet<u64>,
     pub commits: HashSet<u64>,
-    pub view_change_mutiple_set: HashMap<u64, HashSet<u64>>, // 待使用
+    pub view_change_mutiple_set: HashMap<u64, HashSet<u64>>, 
+    // pub hashchain_of_unreceived_block: Vec<String>, // 待使用
+    // pub proof_of_latest_replication_state: Vec<Commit>, // 待使用
 }
 
 // ---
