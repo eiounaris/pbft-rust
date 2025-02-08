@@ -112,6 +112,7 @@ pub struct PrePrepare {
     pub node_id: u64, // 可以不要
     pub signature: Vec<u8>,
     pub requests: Vec<Request>,
+    pub proof_of_previous_hash: String,
 }
 
 /// 准备消息

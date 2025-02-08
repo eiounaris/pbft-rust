@@ -48,7 +48,6 @@ fn sign_data(private_key: &RsaPrivateKey, data: &[u8]) -> Vec<u8> {
     // 使用私钥和哈希数据签名
     private_key.sign(Pkcs1v15Sign::new::<Sha256>(), &hashed_data).expect("failed to sign data")
 }
-
 /// 使用公钥验证签名
 fn _verify_signature(pub_key: &RsaPublicKey, data: &[u8], signature: &[u8]) -> bool {
     // 对数据进行哈希（SHA256）
@@ -61,7 +60,6 @@ fn _verify_signature(pub_key: &RsaPublicKey, data: &[u8], signature: &[u8]) -> b
 pub fn sign_request(priv_key: &RsaPrivateKey, request: &mut Request) {
     request.signature = sign_data(priv_key, serde_json::to_string(&request).unwrap().as_bytes());
 }
-
 /// 验证请求消息
 pub fn verify_request(pub_key: &RsaPublicKey, request: &Request, signature: &[u8]) -> bool {
     let mut request = request.clone();
@@ -76,7 +74,6 @@ pub fn verify_request(pub_key: &RsaPublicKey, request: &Request, signature: &[u8
 pub fn sign_pre_prepare(priv_key: &RsaPrivateKey, pre_prepare: &mut PrePrepare) {
     pre_prepare.signature = sign_data(priv_key, serde_json::to_string(&pre_prepare).unwrap().as_bytes());
 }
-
 /// 验证预准备消息
 pub fn verify_pre_prepare(pub_key: &RsaPublicKey, pre_prepare: & PrePrepare, signature: &[u8]) -> bool {
     let mut pre_prepare = pre_prepare.clone();
@@ -91,7 +88,6 @@ pub fn verify_pre_prepare(pub_key: &RsaPublicKey, pre_prepare: & PrePrepare, sig
 pub fn sign_prepare(priv_key: &RsaPrivateKey, prepare: &mut Prepare) {
     prepare.signature=sign_data(priv_key, serde_json::to_string(&prepare).unwrap().as_bytes());
 }
-
 /// 验证准备消息
 pub fn verify_prepare(pub_key: &RsaPublicKey, prepare: & Prepare, signature: &[u8]) -> bool {
     let mut prepare = prepare.clone();
@@ -106,7 +102,6 @@ pub fn verify_prepare(pub_key: &RsaPublicKey, prepare: & Prepare, signature: &[u
 pub fn sign_commit(priv_key: &RsaPrivateKey, commit: &mut Commit) {
     commit.signature=sign_data(priv_key, serde_json::to_string(&commit).unwrap().as_bytes());
 }
-
 /// 验证提交消息
 pub fn verify_commit(pub_key: &RsaPublicKey, commit: & Commit, signature: &[u8]) -> bool {
     let mut commit = commit.clone();
@@ -121,7 +116,6 @@ pub fn verify_commit(pub_key: &RsaPublicKey, commit: & Commit, signature: &[u8])
 pub fn sign_view_change(priv_key: &RsaPrivateKey, view_change: &mut ViewChange) {
     view_change.signature=sign_data(priv_key, serde_json::to_string(&view_change).unwrap().as_bytes());
 }
-
 /// 验证图切换消息
 pub fn verify_view_change(pub_key: &RsaPublicKey, view_change: & ViewChange, signature: &[u8]) -> bool {
     let mut view_change = view_change.clone();
@@ -136,7 +130,6 @@ pub fn verify_view_change(pub_key: &RsaPublicKey, view_change: & ViewChange, sig
 pub fn sign_new_view(priv_key: &RsaPrivateKey, new_view: &mut NewView) {
     new_view.signature=sign_data(priv_key, serde_json::to_string(&new_view).unwrap().as_bytes());
 }
-
 /// 验证新视图消息
 pub fn verify_new_view(pub_key: &RsaPublicKey, new_view: & NewView, signature: &[u8]) -> bool {
     let mut new_view = new_view.clone();
@@ -150,13 +143,13 @@ pub fn verify_new_view(pub_key: &RsaPublicKey, new_view: & NewView, signature: &
 // ---
 
 // 发送UDP数据
-pub async fn send_udp_data(udp_socket: &UdpSocket, node_addr: &SocketAddr, message_type: MessageType, content: &[u8]) {
+pub async fn send_udp_data(local_udp_socket: &UdpSocket, target_udp_socket: &SocketAddr, message_type: MessageType, content: &[u8]) {
     // 生成消息的字节数组，先是类型字节，然后是消息内容的字节
     let mut message = Vec::new();
     message.push(message_type as u8);  // 将类型作为第一个字节
     message.extend_from_slice(&content);  // 将内容附加到字节数组后面
     // 发送消息
-    udp_socket.send_to(&message, node_addr).await.unwrap();
+    local_udp_socket.send_to(&message, target_udp_socket).await.unwrap();
 }
 
 // ---
@@ -493,6 +486,7 @@ pub async fn handle_message(
                                         digest: Request::digest_requests(&replication_state.request_buffer),
                                         signature: Vec::new(),
                                         requests: replication_state.request_buffer.clone(),
+                                        proof_of_previous_hash: replication_state.last_block().unwrap().previous_hash.clone(),
                                     };
                                     
                                     sign_pre_prepare(&node_info.private_key, &mut pre_prepare);
@@ -521,7 +515,6 @@ pub async fn handle_message(
             }
             // 处理预准备消息
             MessageType::PrePrepare => {
-                tx.send(()).await.unwrap(); // 发送重置信号
                 let mut pbft_state = pbft_state.lock().await;
                 if !node_info.is_primarry(pbft_state.view_number) {
                     // println!("\n备份节点接收到 PrePrepare 消息");
@@ -534,7 +527,9 @@ pub async fn handle_message(
                     if pbft_state.pbft_step == PbftStep::InIdle {
                         if let Ok(pre_prepare) = serde_json::from_slice::<PrePrepare>(&content) {
                             // 成功反序列化，继续处理
-                            if verify_pre_prepare(&node_info.node_configs[pre_prepare.node_id as usize].public_key, &pre_prepare, &pre_prepare.signature) {
+                            // println!("{} == {}?", pre_prepare.proof_of_previous_hash, replication_state.lock().await.last_block().unwrap().hash);
+                            if verify_pre_prepare(&node_info.node_configs[pre_prepare.node_id as usize].public_key, &pre_prepare, &pre_prepare.signature) && pre_prepare.proof_of_previous_hash == replication_state.lock().await.last_block().unwrap().previous_hash {
+                                tx.send(()).await.unwrap(); // 发送重置信号
                                 pbft_state.preprepare = Some(pre_prepare.clone());
                                 pbft_state.pbft_step = PbftStep::ReceiveingPrepare;
                                 pbft_state.prepares.clear();
@@ -564,7 +559,7 @@ pub async fn handle_message(
                                 
                                 
                                 if pbft_state.prepares.len() as u64 >= 2 * ((node_info.node_configs.len() - 1) as u64 / 3u64) {
-                                    println!("\n发送commit消息");
+                                    // println!("\n发送commit消息");
             
                                     pbft_state.pbft_step = PbftStep::ReceiveingCommit;
             
@@ -726,7 +721,7 @@ pub async fn handle_message(
                                 send_udp_data(&local_udp_socket, &src_socket_addr, MessageType::ViewChange, serde_json::to_string(&new_view_change).unwrap().as_bytes()).await;
 
                                 if node_info.is_primarry(pbft_state.view_number) {
-                                    println!("\n主节点发送 NewView 消息");
+                                    // println!("\n主节点发送 NewView 消息");
                                     let mut new_view = NewView {
                                         view_number: pbft_state.view_number,
                                         sequence_number: pbft_state.sequence_number,
@@ -764,7 +759,7 @@ pub async fn handle_message(
             MessageType::NewView => {
                 if let Ok(new_view) = serde_json::from_slice::<NewView>(&content) {
                     if verify_new_view(&node_info.node_configs[new_view.node_id as usize].public_key, &new_view, &new_view.signature) {
-                        println!("\n接收到 NewView 消息");
+                        // println!("\n接收到 NewView 消息");
                         let pbft_state = pbft_state.lock().await;
                         if new_view.view_number == pbft_state.view_number {
                             let local_last_index = replication_state.lock().await.blockchain.last().unwrap().index;
@@ -788,7 +783,7 @@ pub async fn handle_message(
             },
             MessageType::SyncRequest => {
                 if let Ok(sync_request) = serde_json::from_slice::<SyncRequest>(&content) {
-                    println!("\n接收到 SyncRequest 消息");
+                    // println!("\n接收到 SyncRequest 消息");
                     let mut blocks = Vec::new();
                     for index in sync_request.from_index..=sync_request.to_index {
                         if let Some(block) = ReplicationState::load_block_by_index(&format!("config/node_{}/replication_state.json", node_info.local_node_id), index as usize).await {
@@ -806,12 +801,12 @@ pub async fn handle_message(
             },
             MessageType::SyncResponse => {
                 if let Ok(sync_response) = serde_json::from_slice::<SyncResponse>(&content) {
-                    println!("\n接收到 SyncResponse 消息");
+                    // println!("\n接收到 SyncResponse 消息");
                     let mut replication_state = replication_state.lock().await;
                     for block in sync_response.blocks {
                         if replication_state.add_block(block.clone()) {
                             replication_state.store_to_file(&format!("config/node_{}/replication_state.json", node_info.local_node_id)).await;
-                            println!("成功同步区块 {}", block.index);
+                            // println!("成功同步区块 {}", block.index);
                         } else {
                             println!("区块 {} 哈希验证失败，需重新请求", block.index);
                         }
@@ -972,7 +967,7 @@ pub async fn view_change(
                         signature: Vec::new(),
                     };
                     utils::sign_view_change(&node_info.private_key, &mut view_change);
-                    println!("\n发送 view change 消息(view_number: {})", pbft_state.sended_view_number + 1);
+                    println!("\n从节点发送 view change 消息(view_number: {})", pbft_state.sended_view_number + 1);
                     pbft_state.view_change_mutiple_set.entry(view_change.view_number).or_insert(HashSet::new()).insert(node_info.local_node_id);
                     for node_addr in multicast_nodes_addr.iter() {
                         utils::send_udp_data(&local_udp_socket, &node_addr, MessageType::ViewChange, serde_json::to_string(&view_change).unwrap().as_bytes()).await;
@@ -999,7 +994,7 @@ pub async fn determining_primary_node(
     for node_addr in multicast_nodes_addr.iter() {
         utils::send_udp_data(&local_udp_socket, &node_addr, MessageType::DeterminingPrimaryNode, &Vec::new()).await;
     }
-    sleep(Duration::from_secs(3)).await;
+    sleep(Duration::from_secs(2)).await;
     let pbft_state = pbft_state.lock().await;
     let primary_addr: SocketAddr = format!("{}:{}", &node_info.node_configs[pbft_state.view_number as usize % node_info.node_configs.len()].ip, &node_info.node_configs[pbft_state.view_number as usize % node_info.node_configs.len()].port).parse().unwrap();
     utils::send_udp_data(&local_udp_socket, &primary_addr, MessageType::DeterminingLatestReplicationState, &Vec::new()).await;
