@@ -3,8 +3,8 @@ use crate::*;
 // ---
 
 /// 计算区块哈希
-pub fn create_block_hash(index: u64, timestamp: u64, operations: &Vec<Operation>, previous_hash: &str) -> String {
-    let block_json_string = serde_json::to_string(&(index, timestamp, &operations, &previous_hash)).unwrap();
+pub fn create_block_hash(index: u64, _timestamp: u64, operations: &Vec<Operation>, previous_hash: &str) -> String {
+    let block_json_string = serde_json::to_string(&(index, &operations, &previous_hash)).unwrap(); // 不使用时间戳
     let mut hasher = Sha256::new();
     hasher.update(block_json_string);
     format!("{:x}", hasher.finalize())
@@ -708,6 +708,19 @@ pub async fn handle_message(
                                 pbft_state.sended_view_number = view_change.view_number;
                                 println!("\n2f + 1 个节点达成共识达成共识，当前试图为{}", pbft_state.view_number);
                                 tx.send(()).await.unwrap(); // 发送重置信号
+
+
+                                // 解析 JSON 为 `Config` 结构体
+                                let config_jsonstring = std::fs::read_to_string(&format!("config/node_{}/config.json", node_info.local_node_id)).unwrap();
+                                let mut config: Config = serde_json::from_str(&config_jsonstring).expect("JSON 解析失败");
+
+                                // 修改 `port`
+                                config.view_number = pbft_state.view_number;
+                                std::fs::write(&format!("config/node_{}/config.json", node_info.local_node_id), serde_json::to_string_pretty(&config).expect("JSON 序列化失败")).expect("写入文件失败");
+
+
+
+
                                 pbft_state.view_change_mutiple_set.clear();
 
 
@@ -930,9 +943,18 @@ pub async  fn init() -> Result<(Arc<UdpSocket>, Arc<NodeInfo>, Arc<Vec<SocketAdd
     let replication_state = Arc::new(Mutex::new(replication_state));
 
 
+
+    // 解析 JSON 为 `Config` 结构体
+    let config_jsonstring = std::fs::read_to_string(&format!("config/node_{}/config.json", local_node_id)).expect("\n节点配置路径对应文件不存在");
+    let config: Config = serde_json::from_str(&config_jsonstring).expect("JSON 解析失败");
+
+    // 修改 `port`
+    let view_number = config.view_number;
+
+
     // 初始化 pbft 共识状态
     let pbft_state = PbftState::new(
-        0, // view_number 待改进，采用动态视图。
+        view_number, // view_number 待改进，采用动态视图。
         replication_state.lock().await.last_block().unwrap().index, 
         node_info.node_configs.len() as u64
     );

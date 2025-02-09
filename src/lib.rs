@@ -26,17 +26,24 @@ pub struct NodeConfig{
     pub public_key: RsaPublicKey,
 }
 
+/// 节点存储配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Config{
+    pub view_number: u64,
+}
+
 // ---
 
 /// 区块
-const BLOCK_SIZE: usize = 3;
+const BLOCK_SIZE: usize = 25;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Block {
+    pub hash: String, // 方便调试，放在最前面
     pub index: u64,
     pub timestamp: u64,
     pub operations: Vec<Operation>,
     pub previous_hash: String,
-    pub hash: String,
+    
 }
 
 // ---
