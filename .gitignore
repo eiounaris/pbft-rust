@@ -1,4 +1,4 @@
 #忽略所有target目录
 target/
-.git/
-.gitignore
+pbft/
+leet_code/
