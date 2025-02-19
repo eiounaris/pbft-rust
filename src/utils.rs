@@ -410,7 +410,7 @@ pub async fn send_message(udp_socket: Arc<UdpSocket>, node_info: &NodeInfo, _mul
         };
         sign_request(&node_info.private_key, &mut request);
         // 发送消息到主节点（这里发送给了全部节点，待改进，从节点收到请求消息需要记录请求消息超时时间，然后发送视图切换消息）
-        // for node_addr in multicast_nodes_addr {
+        // for node_addr in _multicast_nodes_addr {
         //     send_udp_data(
         //         &udp_socket,
         //         node_addr,
@@ -419,9 +419,13 @@ pub async fn send_message(udp_socket: Arc<UdpSocket>, node_info: &NodeInfo, _mul
         //     ).await;
         // }
         let multicast_addr = "224.0.0.88:8888";
-        println!("发送多播数据");
-        udp_socket.send_to(serde_json::to_string(&request).unwrap().as_bytes(), multicast_addr).await.expect("Failed to send data");
-
+        // println!("发送多播数据");
+        send_udp_data(
+            &udp_socket,
+            &multicast_addr.parse().unwrap(),
+            MessageType::Request,
+            serde_json::to_string(&request).unwrap().as_bytes(),
+        ).await;
     }
 }
 
@@ -497,14 +501,22 @@ pub async fn handle_message(
                                     pbft_state.preprepare = Some(pre_prepare.clone());
 
                                     // println!("\n发送 PrePrepare 消息");
-                                    for node_addr in multicast_nodes_addr {
-                                        send_udp_data(
-                                            &local_udp_socket,
-                                            node_addr,
-                                            MessageType::PrePrepare,
-                                            serde_json::to_string(&pre_prepare).unwrap().as_bytes(),
-                                        ).await;
-                                    }
+                                    // for node_addr in multicast_nodes_addr {
+                                    //     send_udp_data(
+                                    //         &local_udp_socket,
+                                    //         node_addr,
+                                    //         MessageType::PrePrepare,
+                                    //         serde_json::to_string(&pre_prepare).unwrap().as_bytes(),
+                                    //     ).await;
+                                    // }
+                                    let multicast_addr = "224.0.0.88:8888";
+                                    // println!("发送多播数据");
+                                    send_udp_data(
+                                        &local_udp_socket,
+                                        &multicast_addr.parse().unwrap(),
+                                        MessageType::PrePrepare,
+                                        serde_json::to_string(&request).unwrap().as_bytes(),
+                                    ).await;
                                     
                                     pbft_state.pbft_step = PbftStep::ReceiveingPrepare;
                                 }
@@ -552,14 +564,22 @@ pub async fn handle_message(
                                 sign_prepare(&node_info.private_key, &mut prepare);
             
                                 // println!("\n发送 prepare 消息");
-                                for target_addr in multicast_nodes_addr {
+                                // for target_addr in multicast_nodes_addr {
+                                //     send_udp_data(
+                                //         &local_udp_socket,
+                                //         target_addr,
+                                //         MessageType::Prepare,
+                                //         serde_json::to_string(&prepare).unwrap().as_bytes(),
+                                //     ).await;
+                                // }
+                                let multicast_addr = "224.0.0.88:8888";
+                                    // println!("发送多播数据");
                                     send_udp_data(
                                         &local_udp_socket,
-                                        target_addr,
+                                        &multicast_addr.parse().unwrap(),
                                         MessageType::Prepare,
                                         serde_json::to_string(&prepare).unwrap().as_bytes(),
                                     ).await;
-                                }
             
                                 pbft_state.prepares.insert(node_info.local_node_id);
                                 
@@ -579,14 +599,22 @@ pub async fn handle_message(
             
                                     sign_commit(&node_info.private_key, &mut commit);
             
-                                    for target_addr in multicast_nodes_addr {
-                                        send_udp_data(
-                                            &local_udp_socket,
-                                            target_addr,
-                                            MessageType::Commit,
-                                            serde_json::to_string(&commit).unwrap().as_bytes(),
-                                        ).await;
-                                    }
+                                    // for target_addr in multicast_nodes_addr {
+                                    //     send_udp_data(
+                                    //         &local_udp_socket,
+                                    //         target_addr,
+                                    //         MessageType::Commit,
+                                    //         serde_json::to_string(&commit).unwrap().as_bytes(),
+                                    //     ).await;
+                                    // }
+                                    let multicast_addr = "224.0.0.88:8888";
+                                    // println!("发送多播数据");
+                                    send_udp_data(
+                                        &local_udp_socket,
+                                        &multicast_addr.parse().unwrap(),
+                                        MessageType::Commit,
+                                        serde_json::to_string(&commit).unwrap().as_bytes(),
+                                    ).await;
             
                                     pbft_state.commits.insert(node_info.local_node_id);
             
@@ -635,14 +663,22 @@ pub async fn handle_message(
 
                                     sign_commit(&node_info.private_key, &mut commit);
 
-                                    for target_addr in multicast_nodes_addr {
-                                        send_udp_data(
-                                            &local_udp_socket,
-                                            target_addr,
-                                            MessageType::Commit,
-                                            serde_json::to_string(&commit).unwrap().as_bytes(),
-                                        ).await;
-                                    }
+                                    // for target_addr in multicast_nodes_addr {
+                                    //     send_udp_data(
+                                    //         &local_udp_socket,
+                                    //         target_addr,
+                                    //         MessageType::Commit,
+                                    //         serde_json::to_string(&commit).unwrap().as_bytes(),
+                                    //     ).await;
+                                    // }
+                                    let multicast_addr = "224.0.0.88:8888";
+                                    // println!("发送多播数据");
+                                    send_udp_data(
+                                        &local_udp_socket,
+                                        &multicast_addr.parse().unwrap(),
+                                        MessageType::Commit,
+                                        serde_json::to_string(&commit).unwrap().as_bytes(),
+                                    ).await;
 
                                     pbft_state.commits.insert(node_info.local_node_id);
 
@@ -748,9 +784,18 @@ pub async fn handle_message(
                                         signature: Vec::new(),
                                     };
                                     sign_new_view(&node_info.private_key, &mut new_view);
-                                    for target_addr in multicast_nodes_addr.iter() {
-                                        send_udp_data(&local_udp_socket, target_addr, MessageType::NewView, serde_json::to_string(&new_view).unwrap().as_bytes()).await;
-                                    }
+                                    // for target_addr in multicast_nodes_addr.iter() {
+                                    //     send_udp_data(&local_udp_socket, target_addr, MessageType::NewView, serde_json::to_string(&new_view).unwrap().as_bytes()).await;
+                                    // }
+                                    let multicast_addr = "224.0.0.88:8888";
+                                    // println!("发送多播数据");
+                                    send_udp_data(
+                                        &local_udp_socket,
+                                        &multicast_addr.parse().unwrap(),
+                                        MessageType::NewView,
+                                        serde_json::to_string(&new_view).unwrap().as_bytes(),
+                                    ).await;
+                                    
                                 }
                             }
                         }
@@ -772,6 +817,7 @@ pub async fn handle_message(
                     node_id: node_info.local_node_id,
                     signature: Vec::new(),
                 };
+                
                 utils::sign_view_change(&node_info.private_key, &mut view_change);
                 utils::send_udp_data(&local_udp_socket, &src_socket_addr, MessageType::ViewChange, serde_json::to_string(&view_change).unwrap().as_bytes()).await;
             },
@@ -872,9 +918,17 @@ pub async fn primary_heartbeat(
                         signature: Vec::new(),
                     };
                     println!("\n主节点发送心跳消息");
-                    for node_addr in multicast_nodes_addr.iter() {
-                        utils::send_udp_data(&local_udp_socket, &node_addr, MessageType::Hearbeat, serde_json::to_string(&hearbeat).unwrap().as_bytes()).await;
-                    }
+                    // for node_addr in multicast_nodes_addr.iter() {
+                    //     utils::send_udp_data(&local_udp_socket, &node_addr, MessageType::Hearbeat, serde_json::to_string(&hearbeat).unwrap().as_bytes()).await;
+                    // }
+                    let multicast_addr = "224.0.0.88:8888";
+                    // println!("发送多播数据");
+                    send_udp_data(
+                        &local_udp_socket,
+                        &multicast_addr.parse().unwrap(),
+                        MessageType::Hearbeat,
+                        serde_json::to_string(&hearbeat).unwrap().as_bytes(),
+                    ).await;
                 }
             }
         }
@@ -921,13 +975,15 @@ pub async  fn init() -> Result<(Arc<UdpSocket>, Arc<NodeInfo>, Arc<Vec<SocketAdd
     println!("\n本地节点 {} 启动，绑定到地址：{}", local_node_id, local_addr_string);
     
     // 创建本地 UDP 异步套接字
-    let udp_socket = tokio::net::UdpSocket::bind(&local_addr_string).await.expect("\n创建本地节点套接字失败");
+    let udp_socket = tokio::net::UdpSocket::bind("0.0.0.0:8888").await.expect("\n创建本地节点套接字失败");
 
     let multicast_addr = Ipv4Addr::new(224, 0, 0, 88);
 
     let interface  = Ipv4Addr::new(0,0,0,0);
     udp_socket.join_multicast_v4(multicast_addr, interface ).expect("Failed to join multicast group");
 
+    // 禁用多播数据回送
+    udp_socket.set_multicast_loop_v4(false).expect("Failed to disable multicast loopback");
     let udp_socket = Arc::new(udp_socket);
 
     
@@ -1004,9 +1060,18 @@ pub async fn view_change(
                     utils::sign_view_change(&node_info.private_key, &mut view_change);
                     println!("\n从节点发送 view change 消息(view_number: {})", pbft_state.sended_view_number + 1);
                     pbft_state.view_change_mutiple_set.entry(view_change.view_number).or_insert(HashSet::new()).insert(node_info.local_node_id);
-                    for node_addr in multicast_nodes_addr.iter() {
-                        utils::send_udp_data(&local_udp_socket, &node_addr, MessageType::ViewChange, serde_json::to_string(&view_change).unwrap().as_bytes()).await;
-                    }
+                    // for node_addr in multicast_nodes_addr.iter() {
+                    //     utils::send_udp_data(&local_udp_socket, &node_addr, MessageType::ViewChange, serde_json::to_string(&view_change).unwrap().as_bytes()).await;
+                    // }
+                    let multicast_addr = "224.0.0.88:8888";
+                    // println!("发送多播数据");
+                    send_udp_data(
+                        &local_udp_socket,
+                        &multicast_addr.parse().unwrap(),
+                        MessageType::ViewChange,
+                        serde_json::to_string(&view_change).unwrap().as_bytes(),
+                    ).await;
+
                     pbft_state.sended_view_number += 1;
                 }
             }
@@ -1026,9 +1091,17 @@ pub async fn determining_primary_node(
     multicast_nodes_addr: &[SocketAddr], 
     pbft_state: Arc<Mutex<PbftState>>,
 ) {
-    for node_addr in multicast_nodes_addr.iter() {
-        utils::send_udp_data(&local_udp_socket, &node_addr, MessageType::DeterminingPrimaryNode, &Vec::new()).await;
-    }
+    // for node_addr in multicast_nodes_addr.iter() {
+    //     utils::send_udp_data(&local_udp_socket, &node_addr, MessageType::DeterminingPrimaryNode, &Vec::new()).await;
+    // }
+    let multicast_addr = "224.0.0.88:8888";
+    // println!("发送多播数据");
+    send_udp_data(
+        &local_udp_socket,
+        &multicast_addr.parse().unwrap(),
+        MessageType::DeterminingPrimaryNode,
+        &Vec::new(),
+    ).await;
     sleep(Duration::from_secs(2)).await;
     let pbft_state = pbft_state.lock().await;
     let primary_addr: SocketAddr = format!("{}:{}", &node_info.node_configs[pbft_state.view_number as usize % node_info.node_configs.len()].ip, &node_info.node_configs[pbft_state.view_number as usize % node_info.node_configs.len()].port).parse().unwrap();
