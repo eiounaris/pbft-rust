@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use rsa::{pkcs1::{DecodeRsaPrivateKey, DecodeRsaPublicKey, EncodeRsaPublicKey, LineEnding}, Pkcs1v15Sign, RsaPrivateKey, RsaPublicKey};
 
-use std::{ collections::{HashSet,HashMap}, fs::{ File, OpenOptions }, io::{ Read, Write }, net::SocketAddr, sync::Arc, time::{SystemTime, UNIX_EPOCH} };
+use std::{ collections::{HashMap, HashSet}, fs::{ File, OpenOptions }, io::{ Read, Write }, net::{SocketAddr, Ipv4Addr}, sync::Arc, time::{SystemTime, UNIX_EPOCH} };
 
 use sha2::{Sha256, Digest};
 
@@ -16,9 +16,9 @@ use tokio::time::{interval, Duration, sleep};
 use tokio::sync::mpsc;
 // ---
 
-/// 节点配置
+/// 所有节点初始化配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NodeConfig{
+pub struct NodeConfig {
     pub node_id: u64,
     pub ip: String,
     pub port: u16,
@@ -26,29 +26,39 @@ pub struct NodeConfig{
     pub public_key: RsaPublicKey,
 }
 
-/// 节点存储配置
+/// 自身节点节点持久化配置（待调整）
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Config{
+pub struct PrivateConfig {
     pub view_number: u64,
+    pub state_file_path: String, // （后续调整为数据库路径）
 }
 
 // ---
 
+// 区块链公有配置
+pub struct PublicConfig {
+    pub multi_cast_socket: String,
+    pub block_size: u64,
+}
+
+// ---
+
+/// 区块大小（可手动调整区块大小，也可通过配置文件设置区块大小）
+const BLOCK_SIZE: usize = 1;
+
 /// 区块
-const BLOCK_SIZE: usize = 25;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Block {
-    pub hash: String, // 方便调试，放在最前面
     pub index: u64,
     pub timestamp: u64,
     pub operations: Vec<Operation>,
     pub previous_hash: String,
-    
+    pub hash: String, // 若调试，则放在最上面
 }
 
 // ---
 
-/// PBFT 复制状态
+/// PBFT 复制状态 （后续考虑采用BlockChainState命名）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReplicationState {
     pub blockchain: Vec<Block>, // 区块链
@@ -58,30 +68,16 @@ pub struct ReplicationState {
 
 // ---
 
-/// PBFT 操作
+/// PBFT 操作，封装操作，后续添加智能合约功能模块
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Operation {
-    ReadOperation(ReadOperation),
-    WriteOperation(WriteOperation),
-}
-
-/// 读操作
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ReadOperation {
-    Read1,
-    Read2,
-}
-
-/// 写操作
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum WriteOperation {
-    Write1,
-    Write2,
+    Operation1,
+    Operation2,
 }
 
 // ---
 
-/// 消息类型
+/// 消息类型（顺序待调整）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MessageType {
     Request = 0,
@@ -93,10 +89,10 @@ pub enum MessageType {
     NewView = 6,
     Hearbeat = 7,
     Unknown = 8,
-    DeterminingPrimaryNode = 9, // 待使用
-    ReplingPrimaryNode = 10, // 待使用
-    DeterminingLatestReplicationState = 11, // 待使用
-    ReplingLatestReplicationState = 12, // 待使用
+    DeterminingPrimaryNode = 9,
+    ReplingPrimaryNode = 10,
+    DeterminingLatestReplicationState = 11,
+    ReplingLatestReplicationState = 12,
     SyncRequest = 13,
     SyncResponse = 14,
 }
@@ -110,15 +106,15 @@ pub struct Request {
     pub signature: Vec<u8>,
 }
 
-/// 预准备消息
+/// 预准备消息 （后续考虑把主节点本地构造好的区块添加进去）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrePrepare {
     pub view_number: u64,
     pub sequence_number: u64,
     pub digest: Vec<u8>,
-    pub node_id: u64, // 可以不要
+    pub node_id: u64, // （可以不要后续考虑删掉）
     pub signature: Vec<u8>,
-    pub requests: Vec<Request>,
+    pub requests: Vec<Request>, // （后续考虑把主节点本地构造好的区块添加进去pub operations: Vec<Operation>， 之后可把proof_of_previous_hash删掉） 
     pub proof_of_previous_hash: String,
 }
 
@@ -142,7 +138,7 @@ pub struct Commit {
     pub signature: Vec<u8>,
 }
 
-/// 回应消息
+/// 回应消息（暂时保留，该场景使用不到，该场景下共识节点等同于用户节点）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Reply {
     pub view_number: u64,
@@ -156,8 +152,9 @@ pub struct Reply {
 /// 视图切换消息
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ViewChange {
-    pub view_number: u64,
+    pub view_number: u64, 
     pub sequence_number: u64,
+    // 考虑添加 pub next_view_number: u64, 
     pub node_id: u64,
     pub signature: Vec<u8>,
 }
@@ -167,6 +164,7 @@ pub struct ViewChange {
 pub struct NewView {
     pub view_number: u64,
     pub sequence_number: u64,
+    // 考虑添加 pub next_view_number: u64, 
     pub node_id: u64,
     pub signature: Vec<u8>,
 }
@@ -226,7 +224,7 @@ pub struct PbftState {
 
 // ---
 
-/// 存储节点信息
+/// 存储节点运行不变配置信息
 pub struct NodeInfo {
     pub local_node_id: u64,
     pub local_socket_addr: std::net::SocketAddr,

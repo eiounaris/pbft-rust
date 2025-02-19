@@ -4,7 +4,7 @@ use crate::*;
 
 /// 计算区块哈希
 pub fn create_block_hash(index: u64, _timestamp: u64, operations: &Vec<Operation>, previous_hash: &str) -> String {
-    let block_json_string = serde_json::to_string(&(index, &operations, &previous_hash)).unwrap(); // 不使用时间戳
+    let block_json_string = serde_json::to_string(&(index, &operations, &previous_hash)).unwrap(); // (这里暂时没使用时间戳，后续改进）
     let mut hasher = Sha256::new();
     hasher.update(block_json_string);
     format!("{:x}", hasher.finalize())
@@ -23,7 +23,7 @@ pub fn get_current_timestamp() -> u64 {
 
 // ---
 
-/// 从文件加载私钥，错误处理待改进
+/// 从文件加载私钥（错误处理待改进）
 pub fn load_private_key_from_file(file_path: &str) -> RsaPrivateKey {
     let mut file = File::open(file_path).unwrap();
     let mut pem = String::new();
@@ -31,7 +31,7 @@ pub fn load_private_key_from_file(file_path: &str) -> RsaPrivateKey {
     RsaPrivateKey::from_pkcs1_pem(&pem).expect("Failed to decode private key")
 }
 
-/// 从文件加载公钥，错误处理待改进
+/// 从文件加载公钥（错误处理待改进）
 pub fn load_public_key_from_file(file_path: &str) -> RsaPublicKey {
     let mut file = File::open(file_path).expect("Failed to open public key file");
     let mut pem = String::new();
@@ -392,8 +392,8 @@ impl NodeInfo {
 
 // ---
 
-/// 任务: 发送命令行指令数据
-pub async fn send_message(udp_socket: Arc<UdpSocket>, node_info: &NodeInfo, multicast_nodes_addr: &[SocketAddr]) {
+/// 任务: 发送命令行指令数据（待修改为Restful API 供本机用户调用）
+pub async fn send_message(udp_socket: Arc<UdpSocket>, node_info: &NodeInfo, _multicast_nodes_addr: &[SocketAddr]) {
     let stdin = tokio::io::stdin();
     let reader = tokio::io::BufReader::new(stdin);
     let mut lines = reader.lines();
@@ -403,21 +403,25 @@ pub async fn send_message(udp_socket: Arc<UdpSocket>, node_info: &NodeInfo, mult
             continue;
         }
         let mut request = Request {
-            operation: Operation::ReadOperation(ReadOperation::Read1),
+            operation: Operation::Operation1,
             timestamp: get_current_timestamp(),
             node_id: node_info.local_node_id,
             signature: Vec::new(),
         };
         sign_request(&node_info.private_key, &mut request);
         // 发送消息到主节点（这里发送给了全部节点，待改进，从节点收到请求消息需要记录请求消息超时时间，然后发送视图切换消息）
-        for node_addr in multicast_nodes_addr {
-            send_udp_data(
-                &udp_socket,
-                node_addr,
-                MessageType::Request,
-                serde_json::to_string(&request).unwrap().as_bytes(),
-            ).await;
-        }
+        // for node_addr in multicast_nodes_addr {
+        //     send_udp_data(
+        //         &udp_socket,
+        //         node_addr,
+        //         MessageType::Request,
+        //         serde_json::to_string(&request).unwrap().as_bytes(),
+        //     ).await;
+        // }
+        let multicast_addr = "224.0.0.88:8888";
+        println!("发送多播数据");
+        udp_socket.send_to(serde_json::to_string(&request).unwrap().as_bytes(), multicast_addr).await.expect("Failed to send data");
+
     }
 }
 
@@ -431,7 +435,7 @@ pub async fn handle_message(
     pbft_state: Arc<Mutex<PbftState>>,
     tx: mpsc::Sender<()>,
 ) {
-    let mut buf = [0u8; 102400];
+    let mut buf = [0u8; 102400]; // （待修改，将数据存储到堆上）
     loop {
         let (udp_data_size, src_socket_addr) = local_udp_socket.recv_from(&mut buf).await.expect("udp数据报过大，缓冲区溢出");
         // 提取消息类型（第一个字节）
@@ -491,6 +495,7 @@ pub async fn handle_message(
                                     
                                     sign_pre_prepare(&node_info.private_key, &mut pre_prepare);
                                     pbft_state.preprepare = Some(pre_prepare.clone());
+
                                     // println!("\n发送 PrePrepare 消息");
                                     for node_addr in multicast_nodes_addr {
                                         send_udp_data(
@@ -500,6 +505,7 @@ pub async fn handle_message(
                                             serde_json::to_string(&pre_prepare).unwrap().as_bytes(),
                                         ).await;
                                     }
+                                    
                                     pbft_state.pbft_step = PbftStep::ReceiveingPrepare;
                                 }
                             }
@@ -590,7 +596,7 @@ pub async fn handle_message(
                                         pbft_state.pbft_step = PbftStep::InIdle;
                                         let mut replication_state = replication_state.lock().await;
                                         replication_state.add_operations_of_requests(pbft_state.preprepare.clone().unwrap().requests);
-                                        replication_state.store_to_file(&format!("config/node_{}/replication_state.json", node_info.local_node_id)).await;
+                                        replication_state.store_to_file(&format!("config/node_{}/state.json", node_info.local_node_id)).await;
     
                                         if node_info.is_primarry(pbft_state.view_number) {
                                             replication_state.request_buffer.drain(0..pbft_state.preprepare.clone().unwrap().requests.len());
@@ -646,7 +652,7 @@ pub async fn handle_message(
                                         pbft_state.pbft_step = PbftStep::InIdle;
                                         let mut replication_state = replication_state.lock().await;
                                         replication_state.add_operations_of_requests(pbft_state.preprepare.clone().unwrap().requests);
-                                        replication_state.store_to_file(&format!("config/node_{}/replication_state.json", node_info.local_node_id)).await;
+                                        replication_state.store_to_file(&format!("config/node_{}/state.json", node_info.local_node_id)).await;
 
                                         if node_info.is_primarry(pbft_state.view_number) {
                                             replication_state.request_buffer.drain(0..pbft_state.preprepare.clone().unwrap().requests.len());
@@ -678,7 +684,7 @@ pub async fn handle_message(
                                     pbft_state.pbft_step = PbftStep::InIdle;
                                     let mut replication_state = replication_state.lock().await;
                                     replication_state.add_operations_of_requests(pbft_state.preprepare.clone().unwrap().requests);
-                                    replication_state.store_to_file(&format!("config/node_{}/replication_state.json", node_info.local_node_id)).await;
+                                    replication_state.store_to_file(&format!("config/node_{}/state.json", node_info.local_node_id)).await;
         
                                     if node_info.is_primarry(pbft_state.view_number) {
                                         replication_state.request_buffer.drain(0..pbft_state.preprepare.clone().unwrap().requests.len());
@@ -711,12 +717,12 @@ pub async fn handle_message(
 
 
                                 // 解析 JSON 为 `Config` 结构体
-                                let config_jsonstring = std::fs::read_to_string(&format!("config/node_{}/config.json", node_info.local_node_id)).unwrap();
-                                let mut config: Config = serde_json::from_str(&config_jsonstring).expect("JSON 解析失败");
+                                let config_jsonstring = std::fs::read_to_string(&format!("config/node_{}/private_config.json", node_info.local_node_id)).unwrap();
+                                let mut config: PrivateConfig = serde_json::from_str(&config_jsonstring).expect("JSON 解析失败");
 
                                 // 修改 `port`
                                 config.view_number = pbft_state.view_number;
-                                std::fs::write(&format!("config/node_{}/config.json", node_info.local_node_id), serde_json::to_string_pretty(&config).expect("JSON 序列化失败")).expect("写入文件失败");
+                                std::fs::write(&format!("config/node_{}/private_config.json", node_info.local_node_id), serde_json::to_string_pretty(&config).expect("JSON 序列化失败")).expect("写入文件失败");
 
 
 
@@ -799,7 +805,7 @@ pub async fn handle_message(
                     // println!("\n接收到 SyncRequest 消息");
                     let mut blocks = Vec::new();
                     for index in sync_request.from_index..=sync_request.to_index {
-                        if let Some(block) = ReplicationState::load_block_by_index(&format!("config/node_{}/replication_state.json", node_info.local_node_id), index as usize).await {
+                        if let Some(block) = ReplicationState::load_block_by_index(&format!("config/node_{}/state.json", node_info.local_node_id), index as usize).await {
                             blocks.push(block);
                         }
                     }
@@ -818,7 +824,7 @@ pub async fn handle_message(
                     let mut replication_state = replication_state.lock().await;
                     for block in sync_response.blocks {
                         if replication_state.add_block(block.clone()) {
-                            replication_state.store_to_file(&format!("config/node_{}/replication_state.json", node_info.local_node_id)).await;
+                            replication_state.store_to_file(&format!("config/node_{}/tate.json", node_info.local_node_id)).await;
                             // println!("成功同步区块 {}", block.index);
                         } else {
                             println!("区块 {} 哈希验证失败，需重新请求", block.index);
@@ -915,7 +921,14 @@ pub async  fn init() -> Result<(Arc<UdpSocket>, Arc<NodeInfo>, Arc<Vec<SocketAdd
     println!("\n本地节点 {} 启动，绑定到地址：{}", local_node_id, local_addr_string);
     
     // 创建本地 UDP 异步套接字
-    let udp_socket = Arc::new(tokio::net::UdpSocket::bind(&local_addr_string).await.expect("\n创建本地节点套接字失败"));
+    let udp_socket = tokio::net::UdpSocket::bind(&local_addr_string).await.expect("\n创建本地节点套接字失败");
+
+    let multicast_addr = Ipv4Addr::new(224, 0, 0, 88);
+
+    let interface  = Ipv4Addr::new(0,0,0,0);
+    udp_socket.join_multicast_v4(multicast_addr, interface ).expect("Failed to join multicast group");
+
+    let udp_socket = Arc::new(udp_socket);
 
     
     // 初始化节点信息
@@ -931,7 +944,7 @@ pub async  fn init() -> Result<(Arc<UdpSocket>, Arc<NodeInfo>, Arc<Vec<SocketAdd
 
     // 初始化复制状态信息
     let replication_state: ReplicationState;
-    if let Some(block) = ReplicationState::load_last_block_from_file(&format!("config/node_{}/replication_state.json", local_node_id)).await {
+    if let Some(block) = ReplicationState::load_last_block_from_file(&format!("config/node_{}/state.json", local_node_id)).await {
         replication_state = ReplicationState {
             blockchain: vec![block],
             operation_buffer: Vec::new(),
@@ -945,8 +958,8 @@ pub async  fn init() -> Result<(Arc<UdpSocket>, Arc<NodeInfo>, Arc<Vec<SocketAdd
 
 
     // 解析 JSON 为 `Config` 结构体
-    let config_jsonstring = std::fs::read_to_string(&format!("config/node_{}/config.json", local_node_id)).expect("\n节点配置路径对应文件不存在");
-    let config: Config = serde_json::from_str(&config_jsonstring).expect("JSON 解析失败");
+    let config_jsonstring = std::fs::read_to_string(&format!("config/node_{}/private_config.json", local_node_id)).expect("\n节点配置路径对应文件不存在");
+    let config: PrivateConfig = serde_json::from_str(&config_jsonstring).expect("JSON 解析失败");
 
     // 修改 `port`
     let view_number = config.view_number;
