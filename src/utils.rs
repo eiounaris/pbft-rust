@@ -872,7 +872,7 @@ pub async fn handle_message(
                     let mut replication_state = replication_state.lock().await;
                     for block in sync_response.blocks {
                         if replication_state.add_block(block.clone()) {
-                            replication_state.store_to_file(&format!("config/node_{}/tate.json", node_info.local_node_id)).await;
+                            replication_state.store_to_file(&format!("config/node_{}/state.json", node_info.local_node_id)).await;
                             // println!("成功同步区块 {}", block.index);
                         } else {
                             println!("区块 {} 哈希验证失败，需重新请求", block.index);
