@@ -142,7 +142,7 @@ pub fn verify_new_view(pub_key: &RsaPublicKey, new_view: & NewView, signature: &
 
 // ---
 
-// 发送UDP数据
+/// 发送UDP数据
 pub async fn send_udp_data(local_udp_socket: &UdpSocket, target_udp_socket: &SocketAddr, message_type: MessageType, content: &[u8]) {
     // 生成消息的字节数组，先是类型字节，然后是消息内容的字节
     let mut message = Vec::new();
@@ -473,7 +473,7 @@ pub async fn handle_message(
                     if let Ok(request) = serde_json::from_slice::<Request>(&content) {
                         // 成功反序列化，继续处理
                         if verify_request(&node_info.node_configs[request.node_id as usize].public_key, &request, &request.signature) {
-                            // println!("\n主节点接收到合法 Request 消息");
+                            println!("\n主节点接收到合法 Request 消息");
                             let mut replication_state = replication_state.lock().await;
                             replication_state.add_request(request.clone());
                             println!("\n请求缓冲大小: {:?}", replication_state.request_buffer.len());
@@ -500,7 +500,7 @@ pub async fn handle_message(
                                     sign_pre_prepare(&node_info.private_key, &mut pre_prepare);
                                     pbft_state.preprepare = Some(pre_prepare.clone());
 
-                                    // println!("\n发送 PrePrepare 消息");
+                                    println!("\n发送 PrePrepare 消息");
                                     // for node_addr in multicast_nodes_addr {
                                     //     send_udp_data(
                                     //         &local_udp_socket,
@@ -515,7 +515,7 @@ pub async fn handle_message(
                                         &local_udp_socket,
                                         &multicast_addr.parse().unwrap(),
                                         MessageType::PrePrepare,
-                                        serde_json::to_string(&request).unwrap().as_bytes(),
+                                        serde_json::to_string(&pre_prepare).unwrap().as_bytes(),
                                     ).await;
                                     
                                     pbft_state.pbft_step = PbftStep::ReceiveingPrepare;
@@ -535,15 +535,16 @@ pub async fn handle_message(
             MessageType::PrePrepare => {
                 let mut pbft_state = pbft_state.lock().await;
                 if !node_info.is_primarry(pbft_state.view_number) {
-                    // println!("\n备份节点接收到 PrePrepare 消息");
+                    
                     if pbft_state.pbft_step != PbftStep::InIdle && (get_current_timestamp() - pbft_state.start_time > 1) {
                         pbft_state.pbft_step = PbftStep::InIdle;
                         pbft_state.preprepare = None;
                         pbft_state.prepares.clear();
                         pbft_state.commits.clear();
                     }
-                    if pbft_state.pbft_step == PbftStep::InIdle {
+                    if pbft_state.pbft_step == PbftStep::InIdle || true {
                         if let Ok(pre_prepare) = serde_json::from_slice::<PrePrepare>(&content) {
+                            println!("\n备份节点接收到 PrePrepare 消息");
                             // 成功反序列化，继续处理
                             // println!("{} == {}?", pre_prepare.proof_of_previous_hash, replication_state.lock().await.last_block().unwrap().hash);
                             if verify_pre_prepare(&node_info.node_configs[pre_prepare.node_id as usize].public_key, &pre_prepare, &pre_prepare.signature) && pre_prepare.proof_of_previous_hash == replication_state.lock().await.last_block().unwrap().previous_hash {
@@ -563,7 +564,7 @@ pub async fn handle_message(
             
                                 sign_prepare(&node_info.private_key, &mut prepare);
             
-                                // println!("\n发送 prepare 消息");
+                                println!("\n发送 prepare 消息");
                                 // for target_addr in multicast_nodes_addr {
                                 //     send_udp_data(
                                 //         &local_udp_socket,
@@ -585,7 +586,7 @@ pub async fn handle_message(
                                 
                                 
                                 if pbft_state.prepares.len() as u64 >= 2 * ((node_info.node_configs.len() - 1) as u64 / 3u64) {
-                                    // println!("\n发送commit消息");
+                                    println!("\n发送commit消息");
             
                                     pbft_state.pbft_step = PbftStep::ReceiveingCommit;
             
@@ -646,12 +647,12 @@ pub async fn handle_message(
                 if pbft_state.pbft_step == PbftStep::ReceiveingPrepare {
                     if let Ok(prepare) = serde_json::from_slice::<Prepare>(&content) {
                         // 成功反序列化，继续处理
-                        // println!("\n处理 prepare 消息");
+                        println!("\n处理 prepare 消息");
                         if verify_prepare(&node_info.node_configs[prepare.node_id as usize].public_key, &prepare, &prepare.signature) {
                             if !pbft_state.prepares.contains(&prepare.node_id) {
                                 pbft_state.prepares.insert(prepare.node_id);
                                 if pbft_state.prepares.len() as u64 >= 2 * ((node_info.node_configs.len() - 1) as u64 / 3u64) {
-                                    // println!("\n发送 commit 消息");
+                                    println!("\n发送 commit 消息");
                                     pbft_state.pbft_step = PbftStep::ReceiveingCommit;
                                     let mut commit = Commit {
                                         view_number: pbft_state.view_number,
@@ -709,7 +710,7 @@ pub async fn handle_message(
                 if pbft_state.pbft_step == PbftStep::ReceiveingCommit {
                     if let Ok(commit) = serde_json::from_slice::<Commit>(&content) {
                         // 成功反序列化，继续处理
-                        // println!("\n处理 commit 消息");
+                        println!("\n处理 commit 消息");
                         if verify_commit(&node_info.node_configs[commit.node_id as usize].public_key, &commit, &commit.signature) {
                             if !pbft_state.commits.contains(&commit.node_id) {
                                 pbft_state.commits.insert(commit.node_id);
@@ -809,7 +810,7 @@ pub async fn handle_message(
                 tx.send(()).await.unwrap(); // 发送重置信号
             },
             MessageType::DeterminingPrimaryNode => {
-                // println!("接收到 DeterminingPrimaryNode 消息");
+                println!("接收到 DeterminingPrimaryNode 消息");
                 let pbft_state = pbft_state.lock().await;
                 let mut view_change = ViewChange {
                     view_number: pbft_state.view_number,
@@ -824,7 +825,7 @@ pub async fn handle_message(
             MessageType::NewView => {
                 if let Ok(new_view) = serde_json::from_slice::<NewView>(&content) {
                     if verify_new_view(&node_info.node_configs[new_view.node_id as usize].public_key, &new_view, &new_view.signature) {
-                        // println!("\n接收到 NewView 消息");
+                        println!("\n接收到 NewView 消息");
                         let pbft_state = pbft_state.lock().await;
                         if new_view.view_number == pbft_state.view_number {
                             let local_last_index = replication_state.lock().await.blockchain.last().unwrap().index;
@@ -848,7 +849,7 @@ pub async fn handle_message(
             },
             MessageType::SyncRequest => {
                 if let Ok(sync_request) = serde_json::from_slice::<SyncRequest>(&content) {
-                    // println!("\n接收到 SyncRequest 消息");
+                    println!("\n接收到 SyncRequest 消息");
                     let mut blocks = Vec::new();
                     for index in sync_request.from_index..=sync_request.to_index {
                         if let Some(block) = ReplicationState::load_block_by_index(&format!("config/node_{}/state.json", node_info.local_node_id), index as usize).await {
@@ -866,7 +867,7 @@ pub async fn handle_message(
             },
             MessageType::SyncResponse => {
                 if let Ok(sync_response) = serde_json::from_slice::<SyncResponse>(&content) {
-                    // println!("\n接收到 SyncResponse 消息");
+                    println!("\n接收到 SyncResponse 消息");
                     let mut replication_state = replication_state.lock().await;
                     for block in sync_response.blocks {
                         if replication_state.add_block(block.clone()) {
