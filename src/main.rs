@@ -1,3 +1,4 @@
+// main.rs
 #[tokio::main]
 async fn main() {
     if let Ok((
@@ -65,7 +66,19 @@ async fn main() {
             }
         });
 
+        // 启动消息接收处理任务
+        let web_task: tokio::task::JoinHandle<()> = tokio::spawn({
+            let local_udp_socket = local_udp_socket.clone();
+            let node_info = node_info.clone();
+            let replication_state = replication_state.clone();
+            let pbft_state = pbft_state.clone();
+            async move {
+                pbft::actix_web_demo::actix_web_runweb_run(local_udp_socket, node_info, replication_state, pbft_state).await;
+            }
+        }); 
+
+
         // 等待所有任务执行完毕
-        tokio::try_join!(send_task, recv_task, view_change_task, primary_heartbeat_task).unwrap();
+        tokio::try_join!(send_task, recv_task, view_change_task, primary_heartbeat_task, web_task).unwrap();
     };
 }

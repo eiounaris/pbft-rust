@@ -1,4 +1,6 @@
+// lib.rs
 pub mod utils;
+pub mod actix_web_demo;
 use utils::*;
 
 use serde::{Deserialize, Serialize};
@@ -14,6 +16,7 @@ use tokio::{ net::UdpSocket, sync::Mutex, io::{AsyncBufReadExt, BufReader}};
 use tokio::time::{interval, Duration, sleep};
 
 use tokio::sync::mpsc;
+
 // ---
 
 /// 所有节点初始化配置
@@ -71,8 +74,9 @@ pub struct ReplicationState {
 /// PBFT 操作，封装操作，后续添加智能合约功能模块
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Operation {
-    Operation1,
-    Operation2,
+    Operation0 = 0,
+    Operation1 = 1,
+    Operation2 = 2,
 }
 
 // ---

@@ -26,3 +26,5 @@ sha2 = "0.10.8"
 
 # openssl = "0.10.68" 
 
+
+actix-web = "4.9.0" # latest
