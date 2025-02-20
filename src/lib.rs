@@ -19,7 +19,7 @@ use tokio::sync::mpsc;
 
 // ---
 
-/// 所有节点初始化配置
+/// 所有节点初始化配置（fine）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeConfig {
     pub node_id: u64,
@@ -29,7 +29,9 @@ pub struct NodeConfig {
     pub public_key: RsaPublicKey,
 }
 
-/// 自身节点节点持久化配置（待调整）
+// ---
+
+/// 自身节点节点持久化配置（暂时选择state存储路径，后续待调整）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrivateConfig {
     pub view_number: u64,
@@ -38,7 +40,7 @@ pub struct PrivateConfig {
 
 // ---
 
-// 区块链公有配置
+// 区块链公有配置（待调整）
 pub struct PublicConfig {
     pub multi_cast_socket: String,
     pub block_size: u64,
@@ -49,7 +51,7 @@ pub struct PublicConfig {
 /// 区块大小（可手动调整区块大小，也可通过配置文件设置区块大小）
 const BLOCK_SIZE: usize = 50;
 
-/// 区块
+/// 区块（fine）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Block {
     pub index: u64,
@@ -61,7 +63,7 @@ pub struct Block {
 
 // ---
 
-/// PBFT 复制状态 （后续考虑采用BlockChainState命名）
+/// PBFT 复制状态 （后续考虑采用State命名）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReplicationState {
     pub blockchain: Vec<Block>, // 区块链
@@ -71,7 +73,7 @@ pub struct ReplicationState {
 
 // ---
 
-/// PBFT 操作，封装操作，后续添加智能合约功能模块
+/// PBFT 操作，封装操作，后续添加智能合约功能模块（fine）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Operation {
     Operation0 = 0,
@@ -92,16 +94,18 @@ pub enum MessageType {
     ViewChange = 5,
     NewView = 6,
     Hearbeat = 7,
-    Unknown = 8,
+    
     DeterminingPrimaryNode = 9,
     ReplingPrimaryNode = 10,
     DeterminingLatestReplicationState = 11,
     ReplingLatestReplicationState = 12,
     SyncRequest = 13,
     SyncResponse = 14,
+
+    Unknown = 20,
 }
 
-/// 请求消息
+/// 请求消息（fine）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Request {
     pub operation: Operation,
@@ -143,15 +147,15 @@ pub struct Commit {
 }
 
 /// 回应消息（暂时保留，该场景使用不到，该场景下共识节点等同于用户节点）
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Reply {
-    pub view_number: u64,
-    pub timestamp: u64,
-    pub client_id: u64,
-    pub node_id: u64,
-    pub result: String, // 可以只接受结果摘要（待改进）
-    pub signature: Vec<u8>,
-}
+// #[derive(Debug, Clone, Serialize, Deserialize)]
+// pub struct Reply {
+//     pub view_number: u64,
+//     pub timestamp: u64,
+//     pub client_id: u64,
+//     pub node_id: u64,
+//     pub result: String, // 可以只接受结果摘要（待改进）
+//     pub signature: Vec<u8>,
+// }
 
 /// 视图切换消息
 #[derive(Debug, Clone, Serialize, Deserialize)]

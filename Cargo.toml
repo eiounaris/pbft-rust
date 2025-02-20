@@ -19,8 +19,7 @@ sha2 = "0.10.8"
 actix-web = "4.9.0" # latest
 
 
-reqwest = { version = "0.12", features = ["blocking"] }
-
+reqwest = { version = "0.12", features = ["json"] }
 
 
 # ed25519-dalek = "1.0" # ed25519-dalek = "2.1.1" # 
