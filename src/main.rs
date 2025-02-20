@@ -15,10 +15,9 @@ async fn main() {
         tokio::spawn({
             let local_udp_socket = local_udp_socket.clone();
             let node_info = node_info.clone();
-            let multicast_nodes_addr = multicast_nodes_addr.clone();
             let pbft_state = pbft_state.clone();
             async move {
-                pbft::utils::determining_primary_node(local_udp_socket, &node_info, &multicast_nodes_addr, pbft_state).await;
+                pbft::utils::determining_primary_node(local_udp_socket, &node_info, pbft_state).await;
             }
         });
 
@@ -26,10 +25,9 @@ async fn main() {
         let primary_heartbeat_task = tokio::spawn({
             let local_udp_socket = local_udp_socket.clone();
             let node_info = node_info.clone();
-            let multicast_nodes_addr = multicast_nodes_addr.clone();
             let pbft_state = pbft_state.clone();
             async move {
-                pbft::utils::primary_heartbeat(local_udp_socket, &node_info, &multicast_nodes_addr, pbft_state).await;
+                pbft::utils::primary_heartbeat(local_udp_socket, &node_info, pbft_state).await;
             }
         });
 
@@ -37,10 +35,9 @@ async fn main() {
         let view_change_task = tokio::spawn({
             let local_udp_socket = local_udp_socket.clone();
             let node_info = node_info.clone();
-            let multicast_nodes_addr = multicast_nodes_addr.clone();
             let pbft_state = pbft_state.clone();
             async move {
-                pbft::utils::view_change(local_udp_socket, &node_info, &multicast_nodes_addr, pbft_state, rx).await;
+                pbft::utils::view_change(local_udp_socket, &node_info, pbft_state, rx).await;
             }
         });
 
@@ -58,11 +55,10 @@ async fn main() {
         let recv_task: tokio::task::JoinHandle<()> = tokio::spawn({
             let local_udp_socket = local_udp_socket.clone();
             let node_info = node_info.clone();
-            let multicast_nodes_addr = multicast_nodes_addr.clone();
             let replication_state = replication_state.clone();
             let pbft_state = pbft_state.clone();
             async move {
-                pbft::utils::handle_message(local_udp_socket, &node_info,  &multicast_nodes_addr, replication_state, pbft_state, tx).await;
+                pbft::utils::handle_message(local_udp_socket, &node_info, replication_state, pbft_state, tx).await;
             }
         });
 
@@ -71,9 +67,8 @@ async fn main() {
             let local_udp_socket = local_udp_socket.clone();
             let node_info = node_info.clone();
             let replication_state = replication_state.clone();
-            let pbft_state = pbft_state.clone();
             async move {
-                pbft::actix_web_demo::actix_web_runweb_run(local_udp_socket, node_info, replication_state, pbft_state).await;
+                pbft::actix_web_demo::actix_web_runweb_run(local_udp_socket, node_info, replication_state).await;
             }
         }); 
 

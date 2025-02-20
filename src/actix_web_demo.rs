@@ -7,7 +7,6 @@ struct AppState {
     local_udp_socket: Arc<UdpSocket>, 
     node_info: Arc<NodeInfo>, 
     replication_state: Arc<Mutex<ReplicationState>>,
-    pbft_state: Arc<Mutex<PbftState>>,
 }
 
 // 实现 RESTful API 路由配置
@@ -79,14 +78,12 @@ pub async fn actix_web_runweb_run(
     local_udp_socket: Arc<UdpSocket>, 
     node_info: Arc<NodeInfo>, 
     replication_state: Arc<Mutex<ReplicationState>>, 
-    pbft_state: Arc<Mutex<PbftState>>,
 ) {
     // 初始化内存存储
     let app_state = web::Data::new(AppState {
         local_udp_socket: local_udp_socket,
         node_info: node_info,
         replication_state: replication_state,
-        pbft_state: pbft_state,
     });
 
     HttpServer::new(move || {
@@ -99,3 +96,17 @@ pub async fn actix_web_runweb_run(
     .await.unwrap()
 }
 
+
+
+
+
+
+/*
+curl http://localhost:8080/last
+
+curl http://localhost:8080/block/index
+
+curl -X POST http://localhost:8080/block \
+  -H "Content-Type: application/json" \
+  -d '"Operation1"'
+*/

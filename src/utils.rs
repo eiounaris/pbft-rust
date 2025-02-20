@@ -435,7 +435,6 @@ pub async fn send_message(udp_socket: Arc<UdpSocket>, node_info: &NodeInfo, _mul
 pub async fn handle_message(
     local_udp_socket: Arc<UdpSocket>, 
     node_info: &NodeInfo, 
-    multicast_nodes_addr: &[SocketAddr], 
     replication_state: Arc<Mutex<ReplicationState>>, 
     pbft_state: Arc<Mutex<PbftState>>,
     tx: mpsc::Sender<()>,
@@ -476,14 +475,16 @@ pub async fn handle_message(
                         if verify_request(&node_info.node_configs[request.node_id as usize].public_key, &request, &request.signature) {
                             println!("\n主节点接收到合法 Request 消息");
                             let mut replication_state = replication_state.lock().await;
-                            replication_state.add_request(request.clone());
-                            println!("\n请求缓冲大小: {:?}", replication_state.request_buffer.len());
-                            if pbft_state.pbft_step != PbftStep::InIdle && (get_current_timestamp() - pbft_state.start_time > 1) {
-                                pbft_state.pbft_step = PbftStep::InIdle;
-                                pbft_state.preprepare = None;
-                                pbft_state.prepares.clear();
-                                pbft_state.commits.clear();
+                            if replication_state.request_buffer.len() < 50 {
+                                replication_state.add_request(request.clone());
                             }
+                            println!("\n请求缓冲大小: {:?}", replication_state.request_buffer.len());
+                            // if pbft_state.pbft_step != PbftStep::InIdle && (get_current_timestamp() - pbft_state.start_time > 1) {
+                            //     pbft_state.pbft_step = PbftStep::InIdle;
+                            //     pbft_state.preprepare = None;
+                            //     pbft_state.prepares.clear();
+                            //     pbft_state.commits.clear();
+                            // }
                             if pbft_state.pbft_step == PbftStep::InIdle {
                                 if replication_state.request_buffer.len() >= BLOCK_SIZE {
                                     pbft_state.prepares.clear();
@@ -903,7 +904,6 @@ pub async fn handle_message(
 pub async fn primary_heartbeat(
     local_udp_socket: Arc<UdpSocket>, 
     node_info: &NodeInfo, 
-    multicast_nodes_addr: &[SocketAddr], 
     pbft_state: Arc<Mutex<PbftState>>,
 ) {
     let mut interval = interval(Duration::from_secs(3));
@@ -1042,7 +1042,6 @@ pub async  fn init() -> Result<(Arc<UdpSocket>, Arc<NodeInfo>, Arc<Vec<SocketAdd
 pub async fn view_change(
     local_udp_socket: Arc<UdpSocket>, 
     node_info: &NodeInfo, 
-    multicast_nodes_addr: &[SocketAddr], 
     pbft_state: Arc<Mutex<PbftState>>,
     mut rx: mpsc::Receiver<()>,
 ) {
@@ -1090,7 +1089,6 @@ pub async fn view_change(
 pub async fn determining_primary_node(
     local_udp_socket: Arc<UdpSocket>, 
     node_info: &NodeInfo, 
-    multicast_nodes_addr: &[SocketAddr], 
     pbft_state: Arc<Mutex<PbftState>>,
 ) {
     // for node_addr in multicast_nodes_addr.iter() {

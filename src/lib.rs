@@ -47,7 +47,7 @@ pub struct PublicConfig {
 // ---
 
 /// 区块大小（可手动调整区块大小，也可通过配置文件设置区块大小）
-const BLOCK_SIZE: usize = 1;
+const BLOCK_SIZE: usize = 50;
 
 /// 区块
 #[derive(Debug, Clone, Serialize, Deserialize)]
