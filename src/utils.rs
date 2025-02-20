@@ -477,16 +477,20 @@ pub async fn handle_message(
                             let mut replication_state = replication_state.lock().await;
                             if replication_state.request_buffer.len() < 50 {
                                 replication_state.add_request(request.clone());
+                            } else {
+                                eprintln!("\n缓冲区溢出，丢弃部分Request");
                             }
                             println!("\n请求缓冲大小: {:?}", replication_state.request_buffer.len());
-                            // if pbft_state.pbft_step != PbftStep::InIdle && (get_current_timestamp() - pbft_state.start_time > 1) {
-                            //     pbft_state.pbft_step = PbftStep::InIdle;
-                            //     pbft_state.preprepare = None;
-                            //     pbft_state.prepares.clear();
-                            //     pbft_state.commits.clear();
-                            // }
+
+                            if pbft_state.pbft_step != PbftStep::InIdle && (get_current_timestamp() - pbft_state.start_time > 1) {
+                                pbft_state.pbft_step = PbftStep::InIdle;
+                                pbft_state.preprepare = None;
+                                pbft_state.prepares.clear();
+                                pbft_state.commits.clear();
+                            }
                             if pbft_state.pbft_step == PbftStep::InIdle {
                                 if replication_state.request_buffer.len() >= BLOCK_SIZE {
+                                    pbft_state.start_time = get_current_timestamp();
                                     pbft_state.prepares.clear();
                                     pbft_state.commits.clear();
                                     let mut pre_prepare = PrePrepare {
@@ -503,14 +507,7 @@ pub async fn handle_message(
                                     pbft_state.preprepare = Some(pre_prepare.clone());
 
                                     println!("\n发送 PrePrepare 消息");
-                                    // for node_addr in multicast_nodes_addr {
-                                    //     send_udp_data(
-                                    //         &local_udp_socket,
-                                    //         node_addr,
-                                    //         MessageType::PrePrepare,
-                                    //         serde_json::to_string(&pre_prepare).unwrap().as_bytes(),
-                                    //     ).await;
-                                    // }
+
                                     let multicast_addr = "224.0.0.88:8888";
                                     // println!("发送多播数据");
                                     send_udp_data(
@@ -553,6 +550,7 @@ pub async fn handle_message(
                                 tx.send(()).await.unwrap(); // 发送重置信号
                                 pbft_state.preprepare = Some(pre_prepare.clone());
                                 pbft_state.pbft_step = PbftStep::ReceiveingPrepare;
+                                pbft_state.start_time = get_current_timestamp();
                                 pbft_state.prepares.clear();
                                 pbft_state.commits.clear();
     
@@ -567,14 +565,7 @@ pub async fn handle_message(
                                 sign_prepare(&node_info.private_key, &mut prepare);
             
                                 println!("\n发送 prepare 消息");
-                                // for target_addr in multicast_nodes_addr {
-                                //     send_udp_data(
-                                //         &local_udp_socket,
-                                //         target_addr,
-                                //         MessageType::Prepare,
-                                //         serde_json::to_string(&prepare).unwrap().as_bytes(),
-                                //     ).await;
-                                // }
+
                                 let multicast_addr = "224.0.0.88:8888";
                                     // println!("发送多播数据");
                                     send_udp_data(
