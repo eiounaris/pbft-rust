@@ -421,7 +421,6 @@ pub async fn handle_message(
                     if pbft_state.pbft_step == PbftStep::InIdle {
                         if let Ok(pre_prepare) = serde_json::from_slice::<PrePrepare>(&content) {
                             // 成功反序列化，继续处理
-                            
                             if verify_pre_prepare(&node_info.node_configs[pre_prepare.node_id as usize].public_key, &pre_prepare, &pre_prepare.signature) && pre_prepare.proof_of_previous_hash == replication_state.lock().await.last_block().unwrap().previous_hash {
                                 tx.send(()).await.unwrap(); // 发送重置信号
                                 println!("\n备份节点接收到合法 PrePrepare 消息");
