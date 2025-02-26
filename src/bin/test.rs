@@ -3,7 +3,6 @@ use std::error::Error;
 use std::io;
 use std::io::Write;
 use tokio::time::{sleep, Duration};
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let client = Client::new();
@@ -12,7 +11,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         println!("\n请选择要测试的请求类型：");
         println!("1. GET /last");
         println!("2. GET block/index");
-        println!("3. POST block (Operation)");
+        println!("3. POST block");
         println!("4. 退出！");
         print!("请输入选项（1-4）：");
         io::stdout().flush()?;
@@ -24,6 +23,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
         if option == 4 {
             println!("程序已退出。");
             return Ok(());
+        }
+        let mut index: u64 = 0;
+        if option == 2 {
+            println!("请输入测试请求索引：(默认0）");
+            let mut input: String = String::new();
+            io::stdin().read_line(&mut input)?;
+            index = input.trim().parse().unwrap_or(0);
         }
 
         println!("请输入测试次数：(默认1次）");
@@ -41,7 +47,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         for i in 0..count {
             match option {
                 1 => send_last(&client).await?,
-                2 => send_block_index(&client).await?,
+                2 => send_block_index(&client, index).await?,
                 3 => send_operation(&client).await?,
                 _ => {
                     println!("无效的选项，请重新选择。");
@@ -72,10 +78,10 @@ async fn send_last(client: &Client) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-async fn send_block_index(client: &Client) -> Result<(), Box<dyn Error>> {
+async fn send_block_index(client: &Client, index : u64) -> Result<(), Box<dyn Error>> {
     println!("\n发送 GET 请求到 block/index...");
 
-    let response = client.get("http://localhost:8080/block/1").send().await?;
+    let response = client.get(format!("http://localhost:8080/block/{}", index)).send().await?;
     let status = response.status();
 
     if status.is_success() {

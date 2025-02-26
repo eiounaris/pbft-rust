@@ -342,6 +342,7 @@ pub async fn handle_message(
         let content = buf[1..udp_data_size].to_vec(); // 转换为 Vec<u8>
         
         match message_type {
+
             // 处理请求消息
             MessageType::Request => {
                 let mut pbft_state = pbft_state.lock().await;
@@ -352,7 +353,7 @@ pub async fn handle_message(
                             println!("\n主节点接收到合法 Request 消息");
                             let mut replication_state: tokio::sync::MutexGuard<'_, ReplicationState> = replication_state.lock().await;
                             
-                            if replication_state.request_buffer.len() < 50 {
+                            if replication_state.request_buffer.len() < BLOCK_SIZE {
                                 replication_state.add_request(request.clone());
                                 println!("\n当前请求缓冲大小: {:?}", replication_state.request_buffer.len());
                             } else {
@@ -384,9 +385,7 @@ pub async fn handle_message(
                                     pbft_state.preprepare = Some(pre_prepare.clone());
 
                                     println!("\n发送 PrePrepare 消息");
-
                                     let multicast_addr = "224.0.0.88:8888";
-                                    // println!("发送多播数据");
                                     send_udp_data(
                                         &local_udp_socket,
                                         &multicast_addr.parse().unwrap(),
@@ -411,7 +410,6 @@ pub async fn handle_message(
             MessageType::PrePrepare => {
                 let mut pbft_state = pbft_state.lock().await;
                 if !node_info.is_primarry(pbft_state.view_number) {
-                    
                     if pbft_state.pbft_step != PbftStep::InIdle && (get_current_timestamp() - pbft_state.start_time > 1) {
                         pbft_state.pbft_step = PbftStep::InIdle;
                         pbft_state.preprepare = None;
@@ -468,15 +466,6 @@ pub async fn handle_message(
                                     };
             
                                     sign_commit(&node_info.private_key, &mut commit);
-            
-                                    // for target_addr in multicast_nodes_addr {
-                                    //     send_udp_data(
-                                    //         &local_udp_socket,
-                                    //         target_addr,
-                                    //         MessageType::Commit,
-                                    //         serde_json::to_string(&commit).unwrap().as_bytes(),
-                                    //     ).await;
-                                    // }
                                     let multicast_addr = "224.0.0.88:8888";
                                     // println!("发送多播数据");
                                     send_udp_data(
@@ -531,15 +520,6 @@ pub async fn handle_message(
                                     };
 
                                     sign_commit(&node_info.private_key, &mut commit);
-
-                                    // for target_addr in multicast_nodes_addr {
-                                    //     send_udp_data(
-                                    //         &local_udp_socket,
-                                    //         target_addr,
-                                    //         MessageType::Commit,
-                                    //         serde_json::to_string(&commit).unwrap().as_bytes(),
-                                    //     ).await;
-                                    // }
                                     let multicast_addr = "224.0.0.88:8888";
                                     // println!("发送多播数据");
                                     send_udp_data(
@@ -651,9 +631,6 @@ pub async fn handle_message(
                                         signature: Vec::new(),
                                     };
                                     sign_new_view(&node_info.private_key, &mut new_view);
-                                    // for target_addr in multicast_nodes_addr.iter() {
-                                    //     send_udp_data(&local_udp_socket, target_addr, MessageType::NewView, serde_json::to_string(&new_view).unwrap().as_bytes()).await;
-                                    // }
                                     let multicast_addr = "224.0.0.88:8888";
                                     // println!("发送多播数据");
                                     send_udp_data(
@@ -716,12 +693,6 @@ pub async fn handle_message(
             MessageType::SyncRequest => {
                 if let Ok(sync_request) = serde_json::from_slice::<SyncRequest>(&content) {
                     println!("\n接收到 SyncRequest 消息");
-                    // let mut blocks = Vec::new();
-                    // for index in sync_request.from_index..=sync_request.to_index {
-                    //     if let Some(block) = ReplicationState::load_block_by_index(&format!("config/node_{}/state.json", node_info.local_node_id), index as usize).await {
-                    //         blocks.push(block);
-                    //     }
-                    // }
                     let replication_state = replication_state.lock().await;
                     let blocks = replication_state.rocksdb.get_blocks_in_range(sync_request.from_index, sync_request.to_index).unwrap().unwrap();
                     let sync_response = SyncResponse { blocks };
@@ -785,9 +756,6 @@ pub async fn primary_heartbeat(
                         signature: Vec::new(),
                     };
                     println!("\n主节点发送心跳消息");
-                    // for node_addr in multicast_nodes_addr.iter() {
-                    //     utils::send_udp_data(&local_udp_socket, &node_addr, MessageType::Hearbeat, serde_json::to_string(&hearbeat).unwrap().as_bytes()).await;
-                    // }
                     let multicast_addr = "224.0.0.88:8888";
                     // println!("发送多播数据");
                     send_udp_data(
@@ -917,9 +885,6 @@ pub async fn view_change(
                     utils::sign_view_change(&node_info.private_key, &mut view_change);
                     println!("\n从节点发送 view change 消息(view_number: {})", pbft_state.sended_view_number + 1);
                     pbft_state.view_change_mutiple_set.entry(view_change.view_number).or_insert(HashSet::new()).insert(node_info.local_node_id);
-                    // for node_addr in multicast_nodes_addr.iter() {
-                    //     utils::send_udp_data(&local_udp_socket, &node_addr, MessageType::ViewChange, serde_json::to_string(&view_change).unwrap().as_bytes()).await;
-                    // }
                     let multicast_addr = "224.0.0.88:8888";
                     // println!("发送多播数据");
                     send_udp_data(
@@ -947,9 +912,6 @@ pub async fn determining_primary_node(
     node_info: &NodeInfo, 
     pbft_state: Arc<Mutex<PbftState>>,
 ) {
-    // for node_addr in multicast_nodes_addr.iter() {
-    //     utils::send_udp_data(&local_udp_socket, &node_addr, MessageType::DeterminingPrimaryNode, &Vec::new()).await;
-    // }
     let multicast_addr = "224.0.0.88:8888";
     // println!("发送多播数据");
     send_udp_data(

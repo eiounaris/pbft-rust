@@ -2,17 +2,19 @@
 pub mod utils;
 pub mod actix_web_demo;
 pub mod db;
+
 use utils::*;
 use crate::db::*;
+
 use serde::{Deserialize, Serialize};
 
 use rsa::{pkcs1::{DecodeRsaPrivateKey, DecodeRsaPublicKey, EncodeRsaPublicKey, LineEnding}, Pkcs1v15Sign, RsaPrivateKey, RsaPublicKey};
 
-use std::{ collections::{HashMap, HashSet}, fs::{ File, OpenOptions }, io::{ Read, Write }, net::{SocketAddr, Ipv4Addr}, sync::Arc, time::{SystemTime, UNIX_EPOCH} };
+use std::{ collections::{HashMap, HashSet}, fs::File, io::Read, net::{SocketAddr, Ipv4Addr}, sync::Arc, time::{SystemTime, UNIX_EPOCH} };
 
 use sha2::{Sha256, Digest};
 
-use tokio::{ net::UdpSocket, sync::Mutex, io::{AsyncBufReadExt, BufReader}};
+use tokio::{ net::UdpSocket, sync::Mutex, io::AsyncBufReadExt};
 
 use tokio::time::{interval, Duration, sleep};
 
@@ -32,11 +34,11 @@ pub struct NodeConfig {
 
 // ---
 
-/// 自身节点节点持久化配置（暂时选择state存储路径，后续待调整）
+/// 自身节点节点持久化配置（待调整）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrivateConfig {
     pub view_number: u64,
-    pub state_file_path: String, // （后续调整为数据库路径）
+    pub database_name: String,
 }
 
 // ---
@@ -49,7 +51,7 @@ pub struct PublicConfig {
 
 // ---
 
-/// 区块大小（可手动调整区块大小，也可通过配置文件设置区块大小）
+/// 区块大小（待调整）
 const BLOCK_SIZE: usize = 1;
 
 /// 区块（fine）
@@ -59,20 +61,20 @@ pub struct Block {
     pub timestamp: u64,
     pub operations: Vec<Operation>,
     pub previous_hash: String,
-    pub hash: String, // 若调试，则放在最上面
+    pub hash: String,
 }
 
 // ---
 
-/// PBFT 复制状态 （后续考虑采用State命名）
+/// PBFT 复制状态（fine）
 pub struct ReplicationState {
-    pub request_buffer: Vec<Request>, // 请求缓冲
+    pub request_buffer: Vec<Request>, // 用户请求消息缓冲
     pub rocksdb: RocksDBBlockStore,
 }
 
 // ---
 
-/// PBFT 操作，封装操作，后续添加智能合约功能模块（fine）
+/// PBFT 操作，抽象，后续添加智能合约功能模块（待调整）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Operation {
     Operation0 = 0,
@@ -82,7 +84,7 @@ pub enum Operation {
 
 // ---
 
-/// 消息类型（顺序待调整）
+/// 消息类型（待调整）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MessageType {
     Request = 0,
@@ -113,7 +115,7 @@ pub struct Request {
     pub signature: Vec<u8>,
 }
 
-/// 预准备消息 （后续考虑把主节点本地构造好的区块添加进去）
+/// 预准备消息（后续考虑把主节点本地构造好的区块添加进去）（待调整）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrePrepare {
     pub view_number: u64,
@@ -125,7 +127,7 @@ pub struct PrePrepare {
     pub proof_of_previous_hash: String,
 }
 
-/// 准备消息
+/// 准备消息（fine）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Prepare {
     pub view_number: u64,
@@ -135,7 +137,7 @@ pub struct Prepare {
     pub signature: Vec<u8>,
 }
 
-/// 提交消息
+/// 提交消息（fine）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Commit {
     pub view_number: u64,
@@ -145,7 +147,7 @@ pub struct Commit {
     pub signature: Vec<u8>,
 }
 
-/// 回应消息（暂时保留，该场景使用不到，该场景下共识节点等同于用户节点）
+/// 回应消息（PBFT 论文中需要，目前暂时保留，该场景使用不到，该场景下共识节点等同于用户节点）
 // #[derive(Debug, Clone, Serialize, Deserialize)]
 // pub struct Reply {
 //     pub view_number: u64,
@@ -156,7 +158,7 @@ pub struct Commit {
 //     pub signature: Vec<u8>,
 // }
 
-/// 视图切换消息
+/// 视图切换消息（待调整）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ViewChange {
     pub view_number: u64, 
@@ -166,7 +168,7 @@ pub struct ViewChange {
     pub signature: Vec<u8>,
 }
 
-/// 新试图消息
+/// 新试图消息（待调整）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NewView {
     pub view_number: u64,
@@ -176,7 +178,7 @@ pub struct NewView {
     pub signature: Vec<u8>,
 }
 
-/// 心跳消息
+/// 心跳消息（fine）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Hearbeat {
     pub view_number: u64,
@@ -185,14 +187,14 @@ pub struct Hearbeat {
     pub signature: Vec<u8>,
 }
 
-/// 同步请求消息
+/// 同步请求消息（fine）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncRequest {
     pub from_index: u64,
     pub to_index: u64,
 }
 
-/// 同步响应消息
+/// 同步响应消息（fine）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncResponse {
     pub blocks: Vec<Block>,
@@ -201,7 +203,7 @@ pub struct SyncResponse {
 
 
 // ---
-
+/// PBFT 共识过程（待调整）
 #[derive(Debug, PartialEq)]
 pub enum PbftStep {
     InIdle = 0,
@@ -213,7 +215,7 @@ pub enum PbftStep {
     RequestingLatestReplicationState = 6, // 待使用
 }
 
-/// 存储 pbft 共识过程状态信息
+/// 存储 pbft 共识过程状态信息（待调整）
 pub struct PbftState {
     pub view_number: u64,
     pub sended_view_number: u64,
@@ -225,8 +227,8 @@ pub struct PbftState {
     pub prepares: HashSet<u64>,
     pub commits: HashSet<u64>,
     pub view_change_mutiple_set: HashMap<u64, HashSet<u64>>, 
-    // pub hashchain_of_unreceived_block: Vec<String>, // 待使用
-    // pub proof_of_latest_replication_state: Vec<Commit>, // 待使用
+    // pub hashchain_of_unreceived_block: Vec<String>, // 待使用，用于从节点验证主节点发送区块正确性
+    // pub proof_of_latest_replication_state: Vec<Commit>, // 待使用，用于主节点向从节点证明区块链正确性
 }
 
 // ---

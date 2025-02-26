@@ -2,7 +2,6 @@ use super::*;
 use super::utils::*;
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 
-// 内存存储（示例用，实际生产环境需要持久化存储）
 struct AppState {
     local_udp_socket: Arc<UdpSocket>, 
     node_info: Arc<NodeInfo>, 
@@ -12,9 +11,9 @@ struct AppState {
 // 实现 RESTful API 路由配置
 fn configure_routes(cfg: &mut web::ServiceConfig) {
     cfg
-        // 获取全部区块
+        // 获取最新区块
         .route("/last", web::get().to(get_last_block))
-        // 获取单个区块
+        // 获取单个索引区块
         .route("/block/{index}", web::get().to(get_block))
         // 创建新区块
         .route("/block", web::post().to(create_block));
