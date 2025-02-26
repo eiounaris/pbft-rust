@@ -24,7 +24,6 @@ fn configure_routes(cfg: &mut web::ServiceConfig) {
 // GET /block
 async fn get_last_block(data: web::Data<AppState>) -> impl Responder {
     // 这里应返回全部区块数据
-    println!("haha");
     let replication_state = data.replication_state.lock().await; 
     let found_block = replication_state.last_block();
     println!("{:?}", found_block);
@@ -37,8 +36,9 @@ async fn get_block(
     data: web::Data<AppState>,
 ) -> impl Responder {
     // 根据 index 查找区块
-    let found_block = ReplicationState::load_block_by_index(&format!("config/node_{}/state.json", data.node_info.local_node_id), *index as usize).await;
-    
+    // let found_block = ReplicationState::load_block_by_index(&format!("config/node_{}/state.json", data.node_info.local_node_id), *index as usize).await;
+    let replication_state = data.replication_state.lock().await; 
+    let found_block = replication_state.rocksdb.get_last_block().unwrap();
     match found_block {
         Some(block) => {
             println!("{:?}", block);

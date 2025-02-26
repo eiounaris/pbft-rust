@@ -179,154 +179,38 @@ impl ReplicationState {
     /// 初始化状态
     pub fn new() -> Self {
         ReplicationState {
-            blockchain: vec![
-                Block {
-                    index:  0,
-                    timestamp: get_current_timestamp(),
-                    operations: Vec::new(),
-                    previous_hash: String::new(),
-                    hash: String::new(),
-                }
-            ],
-            operation_buffer: Vec::new(),
             request_buffer: Vec::new(),
+            rocksdb : RocksDBBlockStore::new("state").expect("rocksdb初始化失败"),
         } 
     }
 
     /// 返回最新区块
-    pub fn last_block(&self) -> Option<&Block> {
-        self.blockchain.last()
+    pub fn last_block(&self) -> Option<Block> {
+        self.rocksdb.get_last_block().unwrap()
     }
 
     /// 添加区块到区块链
     pub fn add_block(&mut self, block: Block) -> bool {
-        let last_block = self.last_block().unwrap();
-        if block.previous_hash == last_block.hash && block.index == last_block.index + 1 {
-            self.blockchain.push(block);
-            true
-        } else {
-            false
+        if let Err(e) =  self.rocksdb.put_block(&block) {
+            eprintln!("{e:?}");
+            return false
         }
+        true
     }
 
     /// 添加请求消息中的操作请求到操作缓冲池，若操作缓冲池大于区块大小则创建区块链
-    pub fn add_operations_of_requests(&mut self, requests: Vec<Request>) {
+    pub fn store_operations_of_requests_to_blockchain(&mut self, requests: Vec<Request>) {
+        let mut operations = Vec::new();
         for request in requests {
-            self.operation_buffer.push(request.operation);
+            operations.push(request.operation);
         }
-        let new_block = self.create_block(self.operation_buffer.clone());
-        self.operation_buffer.clear();
-        self.add_block(new_block);
+        let new_block = self.rocksdb.create_block(&operations).unwrap().unwrap();
+        self.rocksdb.put_block(&new_block).unwrap();
     }
 
     /// 添加待处理请求添加到请求缓冲池
     pub fn add_request(&mut self, request: Request) {
         self.request_buffer.push(request);
-    }
-
-    /// 根据操作集创建区块
-    pub fn create_block(&self, operations: Vec<Operation>) -> Block {
-        let (index, previous_hash) = if let Some(last_block) = self.last_block() {
-            (last_block.index + 1, last_block.hash.clone())
-        } else {
-            (0, String::new())
-        };
-        let timestamp: u64 = get_current_timestamp();
-        let hash = create_block_hash(index, timestamp, &operations, &previous_hash);
-
-        let block = Block {
-            index,
-            timestamp,
-            operations,
-            previous_hash,
-            hash,
-        };
-        block
-    }
-
-    /// 存储区块链到文件，并清除内存中最近未使用的所有区块
-    pub async fn store_to_file(&mut self, file_path: &str) {
-        let mut num: u64 = 0;
-        if let Some(block) = ReplicationState::load_last_block_from_file(file_path).await {
-            num = block.index + 1;
-        }
-        let mut file: File = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(file_path).expect("存储区块链到文件失败");
-
-        for block in &self.blockchain {
-            if block.index >= num {
-                let block = serde_json::to_string(&block).expect("区块反序列化失败");
-                writeln!(file, "{}", block).unwrap();
-            }
-        }
-        self.drain_blockchain();
-    }
-
-    /// 保留内存中最新一个区块
-    pub fn drain_blockchain(&mut self) {
-        self.blockchain.drain(..self.blockchain.len() - 1);
-    }
-
-    /// 异步读取文件的指定索引区块
-    pub async fn load_block_by_index(file_path: &str, index: usize) -> Option<Block> {
-        ReplicationState::load_block_by_line(file_path, index + 1).await
-    }
-
-    /// 异步读取文件的指定行号所对应区块
-    pub async fn load_block_by_line(file_path: &str, line_number: usize) -> Option<Block> {
-        // 尝试异步打开文件
-        let file = match tokio::fs::File::open(file_path).await {
-            Ok(f) => f,
-            Err(_) => return None,
-        };
-        let reader = BufReader::new(file);
-        let mut lines = reader.lines();
-        // 行号从 1 开始
-        let mut current_line = 1;
-        // 异步遍历每一行
-        while let Ok(Some(line)) = lines.next_line().await {
-            if current_line == line_number {
-                // 尝试将该行解析为 Block
-                match serde_json::from_str::<Block>(&line) {
-                    Ok(block) => return Some(block),
-                    Err(e) => {
-                        eprintln!("解析 JSON 失败: {}", e);
-                        return None; // 解析失败，返回 None
-                    }
-                }
-            }
-            current_line += 1;
-        }
-        // 如果没有找到指定行，返回 None
-        None
-    }
-    
-
-    /// 异步读取文件的最后一行并构造区块
-    pub async fn load_last_block_from_file(file_path: &str) -> Option<Block> {
-        // 尝试异步打开文件
-        let file = match tokio::fs::File::open(file_path).await {
-            Ok(f) => f,
-            Err(_) => {
-                // eprintln!("文件路径{}不存在, 初始化区块链", file_path);
-                return None; // 打开文件失败，返回 None
-            }
-        };
-        let reader = BufReader::new(file);
-        let mut lines = reader.lines();
-        let mut last_line: Option<String> = None;
-        // 异步遍历每一行
-        while let Ok(Some(line)) = lines.next_line().await {
-            last_line = Some(line);
-        }
-        if let Some(line) = last_line {
-            let block = serde_json::from_str(&line).expect("区块序反列化失败");
-            Some(block)
-        } else {
-            None
-        }
     }
 }
 
@@ -411,14 +295,6 @@ pub async fn send_message(udp_socket: Arc<UdpSocket>, node_info: &NodeInfo, _mul
         };
         sign_request(&node_info.private_key, &mut request);
         // 发送消息到主节点（这里发送给了全部节点，待改进，从节点收到请求消息需要记录请求消息超时时间，然后发送视图切换消息）
-        // for node_addr in _multicast_nodes_addr {
-        //     send_udp_data(
-        //         &udp_socket,
-        //         node_addr,
-        //         MessageType::Request,
-        //         serde_json::to_string(&request).unwrap().as_bytes(),
-        //     ).await;
-        // }
         let multicast_addr = "224.0.0.88:8888";
         // println!("发送多播数据");
         send_udp_data(
@@ -474,14 +350,15 @@ pub async fn handle_message(
                         // 成功反序列化，继续处理
                         if verify_request(&node_info.node_configs[request.node_id as usize].public_key, &request, &request.signature) {
                             println!("\n主节点接收到合法 Request 消息");
-                            let mut replication_state = replication_state.lock().await;
+                            let mut replication_state: tokio::sync::MutexGuard<'_, ReplicationState> = replication_state.lock().await;
+                            
                             if replication_state.request_buffer.len() < 50 {
                                 replication_state.add_request(request.clone());
+                                println!("\n当前请求缓冲大小: {:?}", replication_state.request_buffer.len());
                             } else {
                                 eprintln!("\n缓冲区溢出，丢弃部分Request");
                             }
-                            println!("\n请求缓冲大小: {:?}", replication_state.request_buffer.len());
-
+                            
                             if pbft_state.pbft_step != PbftStep::InIdle && (get_current_timestamp() - pbft_state.start_time > 1) {
                                 pbft_state.pbft_step = PbftStep::InIdle;
                                 pbft_state.preprepare = None;
@@ -500,7 +377,7 @@ pub async fn handle_message(
                                         digest: Request::digest_requests(&replication_state.request_buffer),
                                         signature: Vec::new(),
                                         requests: replication_state.request_buffer.clone(),
-                                        proof_of_previous_hash: replication_state.last_block().unwrap().previous_hash.clone(),
+                                        proof_of_previous_hash: replication_state.last_block().unwrap().previous_hash,
                                     };
                                     
                                     sign_pre_prepare(&node_info.private_key, &mut pre_prepare);
@@ -541,13 +418,13 @@ pub async fn handle_message(
                         pbft_state.prepares.clear();
                         pbft_state.commits.clear();
                     }
-                    if pbft_state.pbft_step == PbftStep::InIdle || true {
+                    if pbft_state.pbft_step == PbftStep::InIdle {
                         if let Ok(pre_prepare) = serde_json::from_slice::<PrePrepare>(&content) {
-                            println!("\n备份节点接收到 PrePrepare 消息");
                             // 成功反序列化，继续处理
-                            // println!("{} == {}?", pre_prepare.proof_of_previous_hash, replication_state.lock().await.last_block().unwrap().hash);
+                            
                             if verify_pre_prepare(&node_info.node_configs[pre_prepare.node_id as usize].public_key, &pre_prepare, &pre_prepare.signature) && pre_prepare.proof_of_previous_hash == replication_state.lock().await.last_block().unwrap().previous_hash {
                                 tx.send(()).await.unwrap(); // 发送重置信号
+                                println!("\n备份节点接收到合法 PrePrepare 消息");
                                 pbft_state.preprepare = Some(pre_prepare.clone());
                                 pbft_state.pbft_step = PbftStep::ReceiveingPrepare;
                                 pbft_state.start_time = get_current_timestamp();
@@ -617,8 +494,7 @@ pub async fn handle_message(
                                         pbft_state.sequence_number += 1;
                                         pbft_state.pbft_step = PbftStep::InIdle;
                                         let mut replication_state = replication_state.lock().await;
-                                        replication_state.add_operations_of_requests(pbft_state.preprepare.clone().unwrap().requests);
-                                        replication_state.store_to_file(&format!("config/node_{}/state.json", node_info.local_node_id)).await;
+                                        replication_state.store_operations_of_requests_to_blockchain(pbft_state.preprepare.clone().unwrap().requests);
     
                                         if node_info.is_primarry(pbft_state.view_number) {
                                             replication_state.request_buffer.drain(0..pbft_state.preprepare.clone().unwrap().requests.len());
@@ -681,8 +557,7 @@ pub async fn handle_message(
                                         pbft_state.sequence_number += 1;
                                         pbft_state.pbft_step = PbftStep::InIdle;
                                         let mut replication_state = replication_state.lock().await;
-                                        replication_state.add_operations_of_requests(pbft_state.preprepare.clone().unwrap().requests);
-                                        replication_state.store_to_file(&format!("config/node_{}/state.json", node_info.local_node_id)).await;
+                                        replication_state.store_operations_of_requests_to_blockchain(pbft_state.preprepare.clone().unwrap().requests);
 
                                         if node_info.is_primarry(pbft_state.view_number) {
                                             replication_state.request_buffer.drain(0..pbft_state.preprepare.clone().unwrap().requests.len());
@@ -713,8 +588,7 @@ pub async fn handle_message(
                                     pbft_state.sequence_number += 1;
                                     pbft_state.pbft_step = PbftStep::InIdle;
                                     let mut replication_state = replication_state.lock().await;
-                                    replication_state.add_operations_of_requests(pbft_state.preprepare.clone().unwrap().requests);
-                                    replication_state.store_to_file(&format!("config/node_{}/state.json", node_info.local_node_id)).await;
+                                    replication_state.store_operations_of_requests_to_blockchain(pbft_state.preprepare.clone().unwrap().requests);
         
                                     if node_info.is_primarry(pbft_state.view_number) {
                                         replication_state.request_buffer.drain(0..pbft_state.preprepare.clone().unwrap().requests.len());
@@ -821,7 +695,7 @@ pub async fn handle_message(
                         println!("\n接收到 NewView 消息");
                         let pbft_state = pbft_state.lock().await;
                         if new_view.view_number == pbft_state.view_number {
-                            let local_last_index = replication_state.lock().await.blockchain.last().unwrap().index;
+                            let local_last_index = replication_state.lock().await.rocksdb.get_last_block().unwrap().unwrap().index;
                             // println!("\n判断是否需要发送同步区块请求，{}，{}", new_view.sequence_number, local_last_index);
                             if new_view.sequence_number > local_last_index {
                                 // 发送缺失区块请求
@@ -843,12 +717,14 @@ pub async fn handle_message(
             MessageType::SyncRequest => {
                 if let Ok(sync_request) = serde_json::from_slice::<SyncRequest>(&content) {
                     println!("\n接收到 SyncRequest 消息");
-                    let mut blocks = Vec::new();
-                    for index in sync_request.from_index..=sync_request.to_index {
-                        if let Some(block) = ReplicationState::load_block_by_index(&format!("config/node_{}/state.json", node_info.local_node_id), index as usize).await {
-                            blocks.push(block);
-                        }
-                    }
+                    // let mut blocks = Vec::new();
+                    // for index in sync_request.from_index..=sync_request.to_index {
+                    //     if let Some(block) = ReplicationState::load_block_by_index(&format!("config/node_{}/state.json", node_info.local_node_id), index as usize).await {
+                    //         blocks.push(block);
+                    //     }
+                    // }
+                    let replication_state = replication_state.lock().await;
+                    let blocks = replication_state.rocksdb.get_blocks_in_range(sync_request.from_index, sync_request.to_index).unwrap().unwrap();
                     let sync_response = SyncResponse { blocks };
                     send_udp_data(
                         &local_udp_socket,
@@ -864,7 +740,6 @@ pub async fn handle_message(
                     let mut replication_state = replication_state.lock().await;
                     for block in sync_response.blocks {
                         if replication_state.add_block(block.clone()) {
-                            replication_state.store_to_file(&format!("config/node_{}/state.json", node_info.local_node_id)).await;
                             // println!("成功同步区块 {}", block.index);
                         } else {
                             println!("区块 {} 哈希验证失败，需重新请求", block.index);
@@ -992,16 +867,7 @@ pub async  fn init() -> Result<(Arc<UdpSocket>, Arc<NodeInfo>, Arc<Vec<SocketAdd
 
 
     // 初始化复制状态信息
-    let replication_state: ReplicationState;
-    if let Some(block) = ReplicationState::load_last_block_from_file(&format!("config/node_{}/state.json", local_node_id)).await {
-        replication_state = ReplicationState {
-            blockchain: vec![block],
-            operation_buffer: Vec::new(),
-            request_buffer: Vec::new(),
-        };
-    } else {
-        replication_state = ReplicationState::new();
-    }
+    let replication_state = ReplicationState::new();
     let replication_state = Arc::new(Mutex::new(replication_state));
 
 

@@ -3,7 +3,7 @@ pub mod utils;
 pub mod actix_web_demo;
 pub mod db;
 use utils::*;
-
+use crate::db::*;
 use serde::{Deserialize, Serialize};
 
 use rsa::{pkcs1::{DecodeRsaPrivateKey, DecodeRsaPublicKey, EncodeRsaPublicKey, LineEnding}, Pkcs1v15Sign, RsaPrivateKey, RsaPublicKey};
@@ -50,7 +50,7 @@ pub struct PublicConfig {
 // ---
 
 /// 区块大小（可手动调整区块大小，也可通过配置文件设置区块大小）
-const BLOCK_SIZE: usize = 50;
+const BLOCK_SIZE: usize = 1;
 
 /// 区块（fine）
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,11 +65,9 @@ pub struct Block {
 // ---
 
 /// PBFT 复制状态 （后续考虑采用State命名）
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReplicationState {
-    pub blockchain: Vec<Block>, // 区块链
-    pub operation_buffer: Vec<Operation>, // 操作缓冲
     pub request_buffer: Vec<Request>, // 请求缓冲
+    pub rocksdb: RocksDBBlockStore,
 }
 
 // ---
