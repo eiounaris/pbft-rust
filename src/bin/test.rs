@@ -1,37 +1,35 @@
+use tokio::time::{sleep, Duration};
 use reqwest::Client;
+
 use std::error::Error;
 use std::io;
 use std::io::Write;
-use tokio::time::{sleep, Duration};
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let client = Client::new();
 
     loop {
-        println!("\n请选择要测试的请求类型：");
-        println!("1. GET /last");
-        println!("2. GET block/index");
-        println!("3. POST block");
-        println!("4. 退出！");
-        print!("请输入选项（1-4）：");
-        io::stdout().flush()?;
+        let mut option = 0;
+        while  option != 1 && option != 2 && option != 3 && option != 4 {
+            println!("\n请选择要测试的请求类型：");
+            println!("1. GET /last");
+            println!("2. GET /block/index");
+            println!("3. POST /block");
+            println!("4. 退出！");
+            print!("请输入选项（1-4）：");
+            io::stdout().flush()?;
 
-        let mut option = String::new();
-        io::stdin().read_line(&mut option)?;
-        let option: u32 = option.trim().parse().unwrap_or(4);
-
-        if option == 4 {
-            println!("程序已退出。");
-            return Ok(());
-        }
-        let mut index: u64 = 0;
-        if option == 2 {
-            println!("请输入测试请求索引：(默认0）");
-            let mut input: String = String::new();
+            let mut input = String::new();
             io::stdin().read_line(&mut input)?;
-            index = input.trim().parse().unwrap_or(0);
+            option = input.trim().parse().unwrap_or(4);
+            if option == 4 {
+                println!("程序已退出。");
+                return Ok(());
+            }
         }
-
+        
+        
         println!("请输入测试次数：(默认1次）");
         let mut count = String::new();
         io::stdin().read_line(&mut count)?;
@@ -41,8 +39,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let mut interval_ms = String::new();
         io::stdin().read_line(&mut interval_ms)?;
         let interval_ms: u64 = interval_ms.trim().parse().unwrap_or(1000);
-
         let interval = Duration::from_millis(interval_ms);
+
+        let mut index: u64 = 0;
+        if option == 2 {
+            println!("请输入测试请求索引：(默认0）");
+            let mut input: String = String::new();
+            io::stdin().read_line(&mut input)?;
+            index = input.trim().parse().unwrap_or(0);
+        }
 
         for i in 0..count {
             match option {
@@ -80,8 +85,9 @@ async fn send_last(client: &Client) -> Result<(), Box<dyn Error>> {
 
 async fn send_block_index(client: &Client, index : u64) -> Result<(), Box<dyn Error>> {
     println!("\n发送 GET 请求到 block/index...");
-
-    let response = client.get(format!("http://localhost:8080/block/{}", index)).send().await?;
+    let url = format!("http://localhost:8080/block/{}", index);
+    println!("{url:?}");
+    let response = client.get(url).send().await?;
     let status = response.status();
 
     if status.is_success() {
