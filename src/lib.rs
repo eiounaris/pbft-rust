@@ -1,6 +1,7 @@
 // lib.rs
 pub mod utils;
 pub mod actix_web_demo;
+pub mod db;
 use utils::*;
 
 use serde::{Deserialize, Serialize};
