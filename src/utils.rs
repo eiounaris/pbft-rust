@@ -353,7 +353,7 @@ pub async fn handle_message(
                             println!("\n主节点接收到合法 Request 消息");
                             let mut replication_state: tokio::sync::MutexGuard<'_, ReplicationState> = replication_state.lock().await;
                             
-                            if replication_state.request_buffer.len() < BLOCK_SIZE {
+                            if replication_state.request_buffer.len() < BLOCK_SIZE * 2 {
                                 replication_state.add_request(request.clone());
                                 println!("\n当前请求缓冲大小: {:?}", replication_state.request_buffer.len());
                             } else {

@@ -52,7 +52,7 @@ pub struct PublicConfig {
 // ---
 
 /// 区块大小（待调整）
-const BLOCK_SIZE: usize = 1;
+const BLOCK_SIZE: usize = 50;
 
 /// 区块（fine）
 #[derive(Debug, Clone, Serialize, Deserialize)]
