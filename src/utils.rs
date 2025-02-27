@@ -296,13 +296,44 @@ pub async fn send_message(udp_socket: Arc<UdpSocket>, node_info: &NodeInfo, _mul
         sign_request(&node_info.private_key, &mut request);
         // 发送消息到主节点（这里发送给了全部节点，待改进，从节点收到请求消息需要记录请求消息超时时间，然后发送视图切换消息）
         let multicast_addr = "224.0.0.88:8888";
-        // println!("发送多播数据");
-        send_udp_data(
-            &udp_socket,
-            &multicast_addr.parse().unwrap(),
-            MessageType::Request,
-            serde_json::to_string(&request).unwrap().as_bytes(),
-        ).await;
+        if line == "test" {
+            println!("请输入测试次数：(默认1次）");
+            let mut count = String::new();
+            std::io::stdin().read_line(&mut count).unwrap();
+            let count: u32 = count.trim().parse().unwrap_or(1);
+
+            println!("请输入请求间隔时间（毫秒）：(默认1000毫秒）");
+            let mut interval_ms = String::new();
+            std::io::stdin().read_line(&mut interval_ms).unwrap();
+            let interval_ms: u64 = interval_ms.trim().parse().unwrap_or(1000);
+            let interval = Duration::from_millis(interval_ms);
+
+            for i in 0..count {
+                send_udp_data(
+                    &udp_socket,
+                    &multicast_addr.parse().unwrap(),
+                    MessageType::Request,
+                    serde_json::to_string(&request).unwrap().as_bytes(),
+                ).await;
+                sleep(interval).await;
+                println!("第 {} 次请求完成", i + 1);
+            }
+            // println!("发送多播数据");
+            send_udp_data(
+                &udp_socket,
+                &multicast_addr.parse().unwrap(),
+                MessageType::Request,
+                serde_json::to_string(&request).unwrap().as_bytes(),
+            ).await;
+        } else {
+            // println!("发送多播数据");
+            send_udp_data(
+                &udp_socket,
+                &multicast_addr.parse().unwrap(),
+                MessageType::Request,
+                serde_json::to_string(&request).unwrap().as_bytes(),
+            ).await;
+        }
     }
 }
 
