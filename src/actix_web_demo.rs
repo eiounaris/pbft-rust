@@ -37,14 +37,14 @@ async fn get_block(
     // 根据 index 查找区块
     // let found_block = ReplicationState::load_block_by_index(&format!("config/node_{}/state.json", data.node_info.local_node_id), *index as usize).await;
     let replication_state = data.replication_state.lock().await; 
-    let found_block = replication_state.rocksdb.get_last_block().unwrap();
+    let found_block = replication_state.rocksdb.get_block_by_index(index.into_inner()).unwrap();
     match found_block {
         Some(block) => {
             println!("{:?}", block);
             HttpResponse::Ok().json(&block)
         },
         None => {
-            println!("查无区块{:?}", index);
+            println!("查无区块");
             HttpResponse::NotFound().body("Block not found")
         }
     }
